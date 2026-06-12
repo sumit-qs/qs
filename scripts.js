@@ -121,7 +121,28 @@ document.addEventListener("DOMContentLoaded", function () {
   const consentRoot = document.querySelector('[fs-consent-element="root"]');
   if (consentRoot && consentRoot.shadowRoot) {
     const shadowRoot = consentRoot.shadowRoot;
-  
+
+  // ── Inject scroll fix CSS into Shadow DOM ──
+  const shadowStyle = document.createElement('style');
+  shadowStyle.textContent = `
+    [fs-consent-element="preferences"] {
+      overflow-y: auto !important;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+    #consent_prefs_popup {
+      overflow-y: auto !important;
+      max-height: 70vh !important;
+      overscroll-behavior: contain;
+    }
+    .consent_prefs_form-wrapper {
+      overflow-y: auto !important;
+      max-height: 70vh !important;
+      overscroll-behavior: contain;
+    }
+  `;
+  shadowRoot.appendChild(shadowStyle);
+
     const consentObserver = new MutationObserver(() => {
       const prefsPanel = shadowRoot.querySelector('[fs-consent-element="preferences"]');
       if (prefsPanel) {
@@ -135,7 +156,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       }
     });
-  
+
     consentObserver.observe(shadowRoot, {
       subtree: true,
       attributes: true,
