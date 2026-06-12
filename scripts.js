@@ -59,7 +59,7 @@ import { functionToggleShare } from "./modules/toggle/toggle-share.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("🚀 QS scripts running from sumit-qs repo - Consent Scroll"); // ADD THIS LINE
+  console.log("## SCRIPT VERSION COMMENT - Mobile bug V-0.1 ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -145,7 +145,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function preventTouchScroll(e) {
       e.preventDefault();
     }
-    
+
     // ── Pause ScrollSmoother when prefs panel is open ──
     const consentObserver = new MutationObserver(() => {
       const prefsPanel = shadowRoot.querySelector('[fs-consent-element="preferences"]');
