@@ -141,6 +141,11 @@ document.addEventListener("DOMContentLoaded", function () {
       }, { passive: true });
     }
 
+    // ── Prevent background scroll on touch devices ──
+    function preventTouchScroll(e) {
+      e.preventDefault();
+    }
+    
     // ── Pause ScrollSmoother when prefs panel is open ──
     const consentObserver = new MutationObserver(() => {
       const prefsPanel = shadowRoot.querySelector('[fs-consent-element="preferences"]');
@@ -150,10 +155,12 @@ document.addEventListener("DOMContentLoaded", function () {
           if (smoother) smoother.paused(true);
           document.body.style.overflow = 'hidden';
           document.documentElement.style.overflow = 'hidden';
+          document.addEventListener('touchmove', preventTouchScroll, { passive: false });
         } else {
           if (smoother) smoother.paused(false);
           document.body.style.overflow = '';
           document.documentElement.style.overflow = '';
+          document.removeEventListener('touchmove', preventTouchScroll);
         }
       }
     });
