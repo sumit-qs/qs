@@ -121,7 +121,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const consentRoot = document.querySelector('[fs-consent-element="root"]');
   if (consentRoot && consentRoot.shadowRoot) {
     const shadowRoot = consentRoot.shadowRoot;
-  
+
     // ── Inject scroll fix CSS into Shadow DOM ──
     const shadowStyle = document.createElement('style');
     shadowStyle.textContent = `
@@ -132,7 +132,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     `;
     shadowRoot.appendChild(shadowStyle);
-  
+
     // ── Stop wheel events from bubbling to ScrollSmoother ──
     const prefsList = shadowRoot.querySelector('.consent_prefs_list');
     if (prefsList) {
@@ -140,7 +140,7 @@ document.addEventListener("DOMContentLoaded", function () {
         e.stopPropagation();
       }, { passive: true });
     }
-  
+
     // ── Pause ScrollSmoother when prefs panel is open ──
     const consentObserver = new MutationObserver(() => {
       const prefsPanel = shadowRoot.querySelector('[fs-consent-element="preferences"]');
@@ -149,13 +149,15 @@ document.addEventListener("DOMContentLoaded", function () {
         if (isActive) {
           if (smoother) smoother.paused(true);
           document.body.style.overflow = 'hidden';
+          document.documentElement.style.overflow = 'hidden';
         } else {
           if (smoother) smoother.paused(false);
           document.body.style.overflow = '';
+          document.documentElement.style.overflow = '';
         }
       }
     });
-  
+
     consentObserver.observe(shadowRoot, {
       subtree: true,
       attributes: true,
