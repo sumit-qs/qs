@@ -118,23 +118,30 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // ── Finsweet Consent Pro: pause ScrollSmoother when prefs panel is open ──
-  const prefsPopup = document.querySelector('.consent_prefs_popup');
-  if (prefsPopup) {
+  const consentRoot = document.querySelector('[fs-consent-element="root"]');
+  if (consentRoot && consentRoot.shadowRoot) {
+    const shadowRoot = consentRoot.shadowRoot;
+  
     const consentObserver = new MutationObserver(() => {
-      const isVisible = prefsPopup.style.display !== 'none' && prefsPopup.offsetParent !== null;
-      if (isVisible) {
-        if (smoother) smoother.paused(true);
-        document.body.style.overflow = 'hidden';
-      } else {
-        if (smoother) smoother.paused(false);
-        document.body.style.overflow = '';
+      const prefsPanel = shadowRoot.querySelector('[fs-consent-element="preferences"]');
+      if (prefsPanel) {
+        const isActive = prefsPanel.hasAttribute('fs-consent-active');
+        if (isActive) {
+          if (smoother) smoother.paused(true);
+          document.body.style.overflow = 'hidden';
+        } else {
+          if (smoother) smoother.paused(false);
+          document.body.style.overflow = '';
+        }
       }
     });
-    consentObserver.observe(prefsPopup, {
+  
+    consentObserver.observe(shadowRoot, {
+      subtree: true,
       attributes: true,
-      attributeFilter: ['style', 'class']
+      attributeFilter: ['fs-consent-active']
     });
-  }
+  } 
 
   function functionTop() {
     gsap.to(window, { duration: 0.55, scrollTo: { y: 0 }, ease: myEase });
