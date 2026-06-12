@@ -122,11 +122,11 @@ document.addEventListener("DOMContentLoaded", function () {
   if (consentRoot && consentRoot.shadowRoot) {
     const shadowRoot = consentRoot.shadowRoot;
 
-  // ── Inject scroll fix CSS into Shadow DOM ──
+    // ── Inject scroll fix CSS into Shadow DOM ──
     const shadowStyle = document.createElement('style');
     shadowStyle.textContent = `
       .consent_prefs_form {
-        overflow: visible !important;
+        overflow-y: auto !important;
       }
       .consent_prefs_form-wrapper {
         overflow-y: auto !important;
@@ -136,6 +136,16 @@ document.addEventListener("DOMContentLoaded", function () {
       .consent_prefs_list {
         overflow-y: auto !important;
         overscroll-behavior: contain;
+      }
+      .consent_opt-in_prefs-2 {
+        align-items: center !important;
+        justify-content: center !important;
+        display: flex !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
       }
     `;
     shadowRoot.appendChild(shadowStyle);
