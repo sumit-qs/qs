@@ -59,6 +59,8 @@ import { functionToggleShare } from "./modules/toggle/toggle-share.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
+  console.log("🚀 QS scripts running from sumit-qs repo"); // ADD THIS LINE
+
   gsap.registerPlugin(
     ScrollTrigger,
     ScrollSmoother,
