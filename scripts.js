@@ -59,7 +59,7 @@ import { functionToggleShare } from "./modules/toggle/toggle-share.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## SCRIPT VERSION COMMENT - Mobile bug V-0.2 ##"); // ADD THIS LINE
+  console.log("## SCRIPT VERSION COMMENT - Mobile bug V-0.3 ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -151,7 +151,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // ── Prevent background scroll on touch devices ──
     function preventTouchScroll(e) {
-      e.preventDefault();
+      if (!e.target.closest('.consent_prefs_list')) {
+        e.preventDefault();
+      }
     }
 
     // ── Pause ScrollSmoother when prefs panel is open ──
