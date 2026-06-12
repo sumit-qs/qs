@@ -59,7 +59,7 @@ import { functionToggleShare } from "./modules/toggle/toggle-share.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("🚀 QS scripts running from sumit-qs repo"); // ADD THIS LINE
+  console.log("🚀 QS scripts running from sumit-qs repo - Consent Scroll"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -115,6 +115,25 @@ document.addEventListener("DOMContentLoaded", function () {
         smoother = null;
       }
     }
+  }
+
+  // ── Finsweet Consent Pro: pause ScrollSmoother when prefs panel is open ──
+  const prefsPopup = document.querySelector('.consent_prefs_popup');
+  if (prefsPopup) {
+    const consentObserver = new MutationObserver(() => {
+      const isVisible = prefsPopup.style.display !== 'none' && prefsPopup.offsetParent !== null;
+      if (isVisible) {
+        if (smoother) smoother.paused(true);
+        document.body.style.overflow = 'hidden';
+      } else {
+        if (smoother) smoother.paused(false);
+        document.body.style.overflow = '';
+      }
+    });
+    consentObserver.observe(prefsPopup, {
+      attributes: true,
+      attributeFilter: ['style', 'class']
+    });
   }
 
   function functionTop() {
