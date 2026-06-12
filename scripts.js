@@ -59,7 +59,7 @@ import { functionToggleShare } from "./modules/toggle/toggle-share.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## SCRIPT VERSION COMMENT - Mobile bug V-0.1 ##"); // ADD THIS LINE
+  console.log("## SCRIPT VERSION COMMENT - Mobile bug V-0.2 ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -133,10 +133,18 @@ document.addEventListener("DOMContentLoaded", function () {
     `;
     shadowRoot.appendChild(shadowStyle);
 
-    // ── Stop wheel events from bubbling to ScrollSmoother ──
+    // ── Stop wheel AND touch events from bubbling to ScrollSmoother ──
     const prefsList = shadowRoot.querySelector('.consent_prefs_list');
     if (prefsList) {
       prefsList.addEventListener('wheel', function(e) {
+        e.stopPropagation();
+      }, { passive: true });
+    
+      prefsList.addEventListener('touchmove', function(e) {
+        e.stopPropagation();
+      }, { passive: true });
+    
+      prefsList.addEventListener('touchstart', function(e) {
         e.stopPropagation();
       }, { passive: true });
     }
