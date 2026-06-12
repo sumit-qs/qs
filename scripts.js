@@ -125,27 +125,20 @@ document.addEventListener("DOMContentLoaded", function () {
     // ── Inject scroll fix CSS into Shadow DOM ──
     const shadowStyle = document.createElement('style');
     shadowStyle.textContent = `
-      .consent_prefs_form {
-        overflow-y: auto !important;
-      }
-      .consent_prefs_form-wrapper {
+      [fs-consent-element="preferences"] {
         overflow-y: auto !important;
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
       }
-      .consent_prefs_list {
+      #consent_prefs_popup {
         overflow-y: auto !important;
+        max-height: 70vh !important;
         overscroll-behavior: contain;
       }
-      .consent_opt-in_prefs-2 {
-        align-items: center !important;
-        justify-content: center !important;
-        display: flex !important;
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
+      .consent_prefs_form-wrapper {
+        overflow-y: auto !important;
+        max-height: 70vh !important;
+        overscroll-behavior: contain;
       }
     `;
     shadowRoot.appendChild(shadowStyle);
