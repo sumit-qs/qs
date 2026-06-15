@@ -1,2 +1,4 @@
 .npmrc
 node_modules/
+.DS_Store
+modules/.DS_Store
