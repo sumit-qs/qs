@@ -57,10 +57,11 @@ import { functionConference } from "./modules/interactive/conference.js";
 import { functionToggleMenu } from "./modules/toggle/toggle-menu.js";
 import { functionToggleShare } from "./modules/toggle/toggle-share.js";
 import { functionCookieSettingsButton } from "./modules/consent/cookie-settings.js";
+import { functionInsightsTopicFilter } from "./modules/finsweet/insights-topic-filter.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## SCRIPT VERSION COMMENT - V0.4 [Cookie Page BTN - Consent link] ##"); // ADD THIS LINE
+  console.log("## Insights Dynamic URL [Topic filter] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -218,6 +219,7 @@ document.addEventListener("DOMContentLoaded", function () {
   functionOrdering();
   functionSticky();
   functionCookieSettingsButton();
+  functionInsightsTopicFilter();
 
   }
 });
