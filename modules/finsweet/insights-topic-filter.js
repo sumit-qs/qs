@@ -56,26 +56,35 @@ export function functionInsightsTopicFilter() {
     });
   }
 
-  function bindFilterChangeListener() {
-    const inputs = getTopicInputs();
-    console.log('[QS Topic Filter] Binding to inputs:', inputs.length);
+function bindFilterChangeListener() {
+  const inputs = getTopicInputs();
+  console.log('[QS Topic Filter] Binding to inputs:', inputs.length);
 
-    inputs.forEach((input) => {
-      input.addEventListener('change', () => {
-        setTimeout(() => {
-          const checked = document.querySelector('input[fs-list-field="topic"]:checked');
-          if (checked) {
-            const slug = slugify(checked.getAttribute('fs-list-value') || '');
+  inputs.forEach((input) => {
+    input.addEventListener('change', (e) => {
+      const changedInput = e.currentTarget;
+      setTimeout(() => {
+        if (changedInput.checked) {
+          // Use the input that was just checked
+          const slug = slugify(changedInput.getAttribute('fs-list-value') || '');
+          updateURL(slug);
+          console.log('[QS Topic Filter] URL → (checked)', slug);
+        } else {
+          // Was unchecked — fall back to last remaining checked item
+          const allChecked = [...document.querySelectorAll('input[fs-list-field="topic"]:checked')];
+          if (allChecked.length > 0) {
+            const slug = slugify(allChecked[allChecked.length - 1].getAttribute('fs-list-value') || '');
             updateURL(slug);
-            console.log('[QS Topic Filter] URL →', slug);
+            console.log('[QS Topic Filter] URL → (fallback)', slug);
           } else {
             updateURL(null);
             console.log('[QS Topic Filter] Cleared');
           }
-        }, 50);
-      });
+        }
+      }, 50);
     });
-  }
+  });
+}
 
   function init() {
     const inputs = getTopicInputs();
