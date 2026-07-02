@@ -65,15 +65,29 @@ function bindFilterChangeListener() {
       const changedInput = e.currentTarget;
       setTimeout(() => {
         if (changedInput.checked) {
-          // Use the input that was just checked
           const slug = slugify(changedInput.getAttribute('fs-list-value') || '');
           updateURL(slug);
           console.log('[QS Topic Filter] URL → (checked)', slug);
         } else {
-          // Was unchecked — fall back to last remaining checked item
-          const allChecked = [...document.querySelectorAll('input[fs-list-field="topic"]:checked')];
-          if (allChecked.length > 0) {
-            const slug = slugify(allChecked[allChecked.length - 1].getAttribute('fs-list-value') || '');
+          // Topic unchecked — check if any type filter is also active
+          const activeTypeInput = document.querySelector('input[fs-list-field="type"]:checked');
+          const allCheckedTopics = [...document.querySelectorAll('input[fs-list-field="topic"]:checked')];
+
+          if (activeTypeInput && allCheckedTopics.length === 0) {
+            // Dangerous state — FS will wipe everything
+            // Reset all filters first, then re-apply the type filter
+            console.log('[QS Topic Filter] Cross-filter uncheck detected — resetting safely');
+            const clearEl = document.querySelector('[fs-list-element="clear"]');
+            if (clearEl) {
+              clearEl.click();
+              setTimeout(() => {
+                activeTypeInput.click(); // re-apply type filter
+                console.log('[QS Topic Filter] Re-applied type filter:', activeTypeInput.getAttribute('fs-list-value'));
+              }, 200);
+            }
+            updateURL(null);
+          } else if (allCheckedTopics.length > 0) {
+            const slug = slugify(allCheckedTopics[allCheckedTopics.length - 1].getAttribute('fs-list-value') || '');
             updateURL(slug);
             console.log('[QS Topic Filter] URL → (fallback)', slug);
           } else {
