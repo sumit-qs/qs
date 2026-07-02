@@ -129,20 +129,23 @@ export function functionFinsweetFilters() {
       return anyControl || anyProxyChecked;
     };
 
-const ensureAllWhenNoneSelected = () => {
-  if (isResetting) return;
-  if (hasAnyActiveFilter()) return;
-  isResetting = true;
-  setTimeout(() => {
-    // Force FS to re-evaluate current filter state without clearing anything
-    const activeInput = form.querySelector('input[fs-list-field]:checked');
-    if (activeInput) {
-      // Re-trigger the checked input to make FS repopulate
-      activeInput.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    isResetting = false;
-  }, 150);
-};
+    const ensureAllWhenNoneSelected = () => {
+      if (isResetting) return;
+      if (hasAnyActiveFilter()) return;
+      isResetting = true;
+      if (clearEl) clearEl.click();
+      setTimeout(() => {
+        const items = listItems();
+        items.forEach((li) => {
+          li.style.removeProperty("display");
+        });
+        const cards = items.map(cardOf);
+        cleanup(cards);
+        scrubVisuals();
+        inAnim(items.filter(isVisible));
+        isResetting = false;
+      }, 80);
+    };
 
     let t;
 
@@ -208,7 +211,6 @@ const ensureAllWhenNoneSelected = () => {
     form.addEventListener("input", handleUserChange);
     form.addEventListener("change", handleUserChange);
 
-    // increased from 20ms → 100ms to give FS time to re-apply remaining active filters
     const onFormChange = () => setTimeout(ensureAllWhenNoneSelected, 100);
     form.addEventListener("change", onFormChange);
     form.addEventListener("input", onFormChange);
@@ -227,7 +229,6 @@ const ensureAllWhenNoneSelected = () => {
       }
     };
 
-    // increased from 150ms → 400ms for same reason
     form.addEventListener("change", () => setTimeout(ensureVisibleFallback, 400));
 
     document.addEventListener("click", (e) => {
@@ -282,10 +283,42 @@ const ensureAllWhenNoneSelected = () => {
 
     observeListItems();
 
-    const listObserver = new MutationObserver(() => {
+    // Track FS infinite scroll wipes
+    let fsWipeTimer;
+
+    const listObserver = new MutationObserver((mutations) => {
+      const hasRemovals = mutations.some(m => m.removedNodes.length > 0);
+
+      if (hasRemovals) {
+        // FS is actively removing items — pause our observer to avoid interfering
+        mo.disconnect();
+        clearTimeout(fsWipeTimer);
+        fsWipeTimer = setTimeout(() => {
+          const remaining = listItems().length;
+          console.log('[QS Filters] FS wipe settled, items remaining:', remaining);
+          if (remaining > 0) {
+            observeListItems();
+            scheduleInAnim(100);
+          } else if (hasAnyActiveFilter()) {
+            // FS wiped everything but filters are still active — force re-render
+            console.log('[QS Filters] FS wiped with active filters — forcing re-render');
+            const activeInput = form.querySelector('input[fs-list-field]:checked');
+            if (activeInput) {
+              activeInput.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+            }
+            setTimeout(() => {
+              observeListItems();
+              scheduleInAnim(200);
+            }, 300);
+          }
+        }, 300);
+        return;
+      }
+
       observeListItems();
       scheduleInAnim(100);
     });
+
     listObserver.observe(list, { childList: true });
 
     const css = document.createElement("style");
