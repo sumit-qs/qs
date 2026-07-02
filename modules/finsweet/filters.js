@@ -129,23 +129,20 @@ export function functionFinsweetFilters() {
       return anyControl || anyProxyChecked;
     };
 
-    const ensureAllWhenNoneSelected = () => {
-      if (isResetting) return;
-      if (hasAnyActiveFilter()) return;
-      isResetting = true;
-      if (clearEl) clearEl.click();
-      setTimeout(() => {
-        const items = listItems();
-        items.forEach((li) => {
-          li.style.removeProperty("display");
-        });
-        const cards = items.map(cardOf);
-        cleanup(cards);
-        scrubVisuals();
-        inAnim(items.filter(isVisible));
-        isResetting = false;
-      }, 80);
-    };
+const ensureAllWhenNoneSelected = () => {
+  if (isResetting) return;
+  if (hasAnyActiveFilter()) return;
+  isResetting = true;
+  setTimeout(() => {
+    // Force FS to re-evaluate current filter state without clearing anything
+    const activeInput = form.querySelector('input[fs-list-field]:checked');
+    if (activeInput) {
+      // Re-trigger the checked input to make FS repopulate
+      activeInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    isResetting = false;
+  }, 150);
+};
 
     let t;
 
