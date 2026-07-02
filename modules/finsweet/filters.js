@@ -24,7 +24,7 @@ export function functionFinsweetFilters() {
     // Pages where we want to SKIP the first auto-scroll caused by programmatic filter changes
     const noInitialScrollPaths = [
       "/about-us/meet-the-team-qs-new",
-      "/about-us/meet-the-team" // <--- change this to your second URL
+      "/about-us/meet-the-team"
     ];
 
     const isNoInitialScrollPage = noInitialScrollPaths.some((path) =>
@@ -160,7 +160,6 @@ export function functionFinsweetFilters() {
     // Smoothly scroll the viewport to the top of the nearest .qs-section
     let __lastScrollTs = 0;
     const scrollToFiltersSection = (targetEl) => {
-      // Do not spam; limit to ~1 scroll per 300ms
       const now = Date.now();
       if (now - __lastScrollTs < 300) return;
       __lastScrollTs = now;
@@ -173,7 +172,7 @@ export function functionFinsweetFilters() {
 
       const sectionTop = section.getBoundingClientRect().top + window.pageYOffset;
       const targetY = Math.max(0, sectionTop - 32);
-      if (Math.abs(window.pageYOffset - targetY) < 8) return; // already at top (with offset)
+      if (Math.abs(window.pageYOffset - targetY) < 8) return;
 
       try {
         gsap.killTweensOf(window);
@@ -184,7 +183,6 @@ export function functionFinsweetFilters() {
           overwrite: "auto"
         });
       } catch (_) {
-        // Fallback
         window.scrollTo({ top: targetY, behavior: "smooth" });
       }
     };
@@ -196,16 +194,14 @@ export function functionFinsweetFilters() {
     };
 
     const handleUserChange = (e) => {
-      const isProgrammatic = e?.isTrusted === false; // programmatic events report isTrusted === false
+      const isProgrammatic = e?.isTrusted === false;
 
       if (!isResetting) {
         if (isProgrammatic) {
           hasSkippedInitialScroll = true;
         } else if (isNoInitialScrollPage && !hasSkippedInitialScroll) {
-          // First change on those pages (e.g. programmatic Leadership preselect) – don't scroll
           hasSkippedInitialScroll = true;
         } else {
-          // All subsequent user changes scroll as normal
           scrollToFiltersSection(e?.target);
         }
       }
@@ -215,7 +211,8 @@ export function functionFinsweetFilters() {
     form.addEventListener("input", handleUserChange);
     form.addEventListener("change", handleUserChange);
 
-    const onFormChange = () => setTimeout(ensureAllWhenNoneSelected, 20);
+    // increased from 20ms → 100ms to give FS time to re-apply remaining active filters
+    const onFormChange = () => setTimeout(ensureAllWhenNoneSelected, 100);
     form.addEventListener("change", onFormChange);
     form.addEventListener("input", onFormChange);
 
@@ -233,7 +230,8 @@ export function functionFinsweetFilters() {
       }
     };
 
-    form.addEventListener("change", () => setTimeout(ensureVisibleFallback, 150));
+    // increased from 150ms → 400ms for same reason
+    form.addEventListener("change", () => setTimeout(ensureVisibleFallback, 400));
 
     document.addEventListener("click", (e) => {
       const btn = e.target.closest('[fs-list-element="clear"]');
