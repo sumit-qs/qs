@@ -249,6 +249,30 @@ export function functionFinsweetFilters() {
       }, 80);
     });
 
+    // ── Guard: type uncheck while topic active → reset + re-apply topic ──
+    const typeInputs = Array.from(form.querySelectorAll('input[fs-list-field="type"]'));
+    typeInputs.forEach((input) => {
+      input.addEventListener('change', (e) => {
+        const changedInput = e.currentTarget;
+        setTimeout(() => {
+          if (!changedInput.checked) {
+            const activeTopicInput = form.querySelector('input[fs-list-field="topic"]:checked');
+            const remainingTypes = [...form.querySelectorAll('input[fs-list-field="type"]:checked')];
+            if (activeTopicInput && remainingTypes.length === 0) {
+              console.log('[QS Filters] Type uncheck with active topic — resetting safely');
+              if (clearEl) {
+                clearEl.click();
+                setTimeout(() => {
+                  activeTopicInput.click();
+                  console.log('[QS Filters] Re-applied topic filter:', activeTopicInput.getAttribute('fs-list-value'));
+                }, 200);
+              }
+            }
+          }
+        }, 50);
+      });
+    });
+
     const displayFrom = (styleString = "") => {
       const match = styleString.match(/display\s*:\s*([^;]+)/i);
       return match ? match[1].trim() : "";
