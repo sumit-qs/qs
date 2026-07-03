@@ -61,7 +61,7 @@ import { functionInsightsTopicFilter } from "./modules/finsweet/insights-topic-f
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## Insights Dynamic URL [Topic filter] ##"); // ADD THIS LINE
+  console.log("## Insights Dynamic URL -- V 0.1 ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
