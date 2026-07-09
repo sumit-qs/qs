@@ -58,6 +58,7 @@ import { functionToggleMenu } from "./modules/toggle/toggle-menu.js";
 import { functionToggleShare } from "./modules/toggle/toggle-share.js";
 import { functionCookieSettingsButton } from "./modules/consent/cookie-settings.js";
 import { functionInsightsTopicFilter } from "./modules/finsweet/insights-topic-filter.js";
+import { functionSearchClearFilters } from "./modules/finsweet/search-clear-filters.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -220,6 +221,7 @@ document.addEventListener("DOMContentLoaded", function () {
   functionSticky();
   functionCookieSettingsButton();
   functionInsightsTopicFilter();
+  functionSearchClearFilters();
 
   }
 });
