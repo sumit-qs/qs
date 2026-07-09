@@ -59,10 +59,11 @@ import { functionToggleShare } from "./modules/toggle/toggle-share.js";
 import { functionCookieSettingsButton } from "./modules/consent/cookie-settings.js";
 import { functionInsightsTopicFilter } from "./modules/finsweet/insights-topic-filter.js";
 import { functionSearchClearFilters } from "./modules/finsweet/search-clear-filters.js";
+import { functionHideZeroFilters } from "./modules/finsweet/hide-zero-filters.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## Insights Dynamic URL -- V 0.1 ##"); // ADD THIS LINE
+  console.log("## July 09 ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -222,6 +223,7 @@ document.addEventListener("DOMContentLoaded", function () {
   functionCookieSettingsButton();
   functionInsightsTopicFilter();
   functionSearchClearFilters();
+  functionHideZeroFilters();
 
   }
 });
