@@ -63,7 +63,7 @@ import { functionHideZeroFilters } from "./modules/finsweet/hide-zero-filters.js
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## Es build V0.1 ##"); // ADD THIS LINE
+  console.log("## Es build V-0.1 ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
