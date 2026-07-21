@@ -66,6 +66,14 @@ async function sortSearchResultsByDate(resultsWrapper) {
 	const dated = withDates.filter((r) => r.date).sort((a, b) => b.date - a.date);
 	const undated = withDates.filter((r) => !r.date);
 
+	// TEMP DEBUG — remove once confirmed working on live
+	console.log(
+		"[search-sort] dated:",
+		dated.map((r) => r.date.toDateString()),
+		"| undated count:",
+		undated.length
+	);
+
 	[...dated, ...undated].forEach((r) => resultsWrapper.appendChild(r.item));
 }
 
@@ -77,16 +85,46 @@ export function functionSearchSort() {
 	if (!resultsWrapper) return;
 
 	let debounceTimer;
+	let hasSortedOnce = false;
+
+	function runSort() {
+		observer.disconnect();
+		sortSearchResultsByDate(resultsWrapper).finally(() => {
+			observer.observe(resultsWrapper, { childList: true });
+		});
+	}
 
 	const observer = new MutationObserver(() => {
 		clearTimeout(debounceTimer);
-		debounceTimer = setTimeout(() => {
-			observer.disconnect();
-			sortSearchResultsByDate(resultsWrapper).finally(() => {
-				observer.observe(resultsWrapper, { childList: true });
-			});
-		}, 200);
+		debounceTimer = setTimeout(runSort, 200);
 	});
 
 	observer.observe(resultsWrapper, { childList: true });
+
+	// Native Search may have already finished rendering by the time this
+	// script runs (results are not always a *future* mutation from our
+	// point of view) — in that case MutationObserver alone never fires.
+	// Poll briefly for a stable, non-empty item count, then sort once.
+	let stableChecks = 0;
+	let lastCount = -1;
+	const pollTimer = setInterval(() => {
+		const count = resultsWrapper.querySelectorAll(".qs-search-item").length;
+
+		if (count > 0 && count === lastCount) {
+			stableChecks++;
+		} else {
+			stableChecks = 0;
+		}
+		lastCount = count;
+
+		if (stableChecks >= 2 && !hasSortedOnce) {
+			hasSortedOnce = true;
+			clearInterval(pollTimer);
+			console.log("[search-sort] stable item count detected:", count, "— running sort"); // TEMP DEBUG
+			runSort();
+		}
+	}, 150);
+
+	// Safety timeout: stop polling after 5s regardless (e.g. genuinely no results)
+	setTimeout(() => clearInterval(pollTimer), 5000);
 }

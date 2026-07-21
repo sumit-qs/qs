@@ -64,7 +64,7 @@ import { functionSearchSort } from "./modules/interactive/search-sort.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## ES - Build V1.0 [Search sorting] ##"); // ADD THIS LINE
+  console.log("## ES - Build V1.1 [Search sorting] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
