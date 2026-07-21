@@ -60,10 +60,11 @@ import { functionCookieSettingsButton } from "./modules/consent/cookie-settings.
 import { functionInsightsTopicFilter } from "./modules/finsweet/insights-topic-filter.js";
 import { functionSearchClearFilters } from "./modules/finsweet/search-clear-filters.js";
 import { functionHideZeroFilters } from "./modules/finsweet/hide-zero-filters.js";
+import { functionSearchSort } from "./modules/interactive/search-sort.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## Es build V-0.1 ##"); // ADD THIS LINE
+  console.log("## ES - Build V1.0 [Search sorting] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -224,6 +225,7 @@ document.addEventListener("DOMContentLoaded", function () {
   functionInsightsTopicFilter();
   functionSearchClearFilters();
   functionHideZeroFilters();
+  functionSearchSort();
 
   }
 });

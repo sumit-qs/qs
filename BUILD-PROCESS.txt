@@ -1,0 +1,86 @@
+# QS Source Code — Build & Deploy Process
+# =========================================
+
+## STANDARD WORKFLOW
+
+1. Open VS Code in the /qs folder
+2. Open Terminal 1 → start the watcher:
+      npm run watch
+   Wait until you see: "Watching for changes..."
+
+3. Open Terminal 2 → this is your git terminal (keep it separate)
+
+4. Make your file edits and save (Cmd+S)
+   Terminal 1 will show a rebuild confirmation automatically
+
+5. In Terminal 2, commit and push:
+      git add .
+      git commit -m "your message here"
+      git push
+
+6. Wait ~30 seconds for GitHub Pages to deploy
+
+7. Hard refresh the live site (Cmd+Shift+R) to verify changes
+
+
+## IMPORTANT RULES
+
+- ALWAYS start npm run watch BEFORE editing files
+- NEVER edit files while watch is stopped — esbuild will miss the changes
+- NEVER run git add/commit/push from Terminal 1 (watch terminal)
+- After pushing, always verify the console log version string on the live site
+- The version string is in scripts.js line 66:
+      console.log("## Es build V0.1 ##");
+  Update this string with each significant release so you can confirm
+  the correct version is live
+
+
+## WEBFLOW CONNECTION
+
+The live site loads scripts from GitHub Pages via:
+  <script src="https://sumit-qs.github.io/qs/scripts.min.js" defer></script>
+
+So the deploy chain is:
+  scripts.js (source) → esbuild → scripts.min.js → git push → GitHub Pages → Webflow → live site
+
+
+## IF WATCH STOPS WORKING / MISSES A REBUILD
+
+Step 1: Stop watch (Ctrl+C in Terminal 1)
+
+Step 2: Run the emergency force rebuild command:
+  node -e "import('esbuild').then(({build})=>build({entryPoints:{scripts:'scripts.js','locale-redirect':'config/locale-redirect.js'},outdir:'.',entryNames:'[name].min',minify:true,bundle:true,sourcemap:false,format:'iife',target:'es6'})).then(()=>console.log('Built!')).catch(console.error)"
+
+Step 3: You should see "Built!" in the terminal
+  If you don't, there is a syntax error in one of your source files
+
+Step 4: Commit and push as normal:
+      git add .
+      git commit -m "your message here"
+      git push
+
+Step 5: Restart watch for future edits:
+      npm run watch
+
+
+## HOW TO CONFIRM LIVE BUILD IS UPDATED
+
+Open browser devtools on any qs.com page → Console tab
+Look for: ## Es build V0.1 ##
+If you still see the old version string, GitHub Pages hasn't deployed yet
+Wait 30-60 seconds and hard refresh again (Cmd+Shift+R)
+
+
+## SOURCE FILE STRUCTURE
+
+scripts.js              → main entry point, imports all modules
+modules/finsweet/       → Finsweet fs-list related modules
+modules/toggle/         → accordion, menu, navigation
+modules/hover/          → hover interactions
+modules/interactive/    → swiper, countdown, gate, webinar etc
+modules/fixed/          → sticky, progress, scroll
+modules/consent/        → cookie settings
+modules/drag/           → draggable
+modules/hubspot/        → HubSpot styles
+config/                 → GSAP variables, theme, locale redirect
+scripts.min.js          → BUILT FILE — do not edit directly
