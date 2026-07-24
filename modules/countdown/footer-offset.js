@@ -7,7 +7,7 @@
 let resizeTimer = null;
 
 function getCountdownBar() {
-  return document.querySelector('.conference-hero .conference-info');
+  return document.querySelector('.conference-info');
 }
 
 function applyCountdownFooterOffset() {
