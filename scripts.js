@@ -61,10 +61,11 @@ import { functionInsightsTopicFilter } from "./modules/finsweet/insights-topic-f
 import { functionSearchClearFilters } from "./modules/finsweet/search-clear-filters.js";
 import { functionHideZeroFilters } from "./modules/finsweet/hide-zero-filters.js";
 import { functionSearchSort } from "./modules/interactive/search-sort.js";
+import { initCountdownFooterOffset } from './modules/countdown/footer-offset.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## ES - Build V1.1 [Search sorting] ##"); // ADD THIS LINE
+  console.log("## ES - Build V1.2 [Conference Countdown Footer Visibility] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -226,6 +227,7 @@ document.addEventListener("DOMContentLoaded", function () {
   functionSearchClearFilters();
   functionHideZeroFilters();
   functionSearchSort();
+  initCountdownFooterOffset();
 
   }
 });
