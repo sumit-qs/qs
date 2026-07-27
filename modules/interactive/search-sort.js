@@ -1,32 +1,105 @@
 /**
- * Native Webflow Search results — client-side date sort (Insights only, pilot).
+ * Native Webflow Search results — unified client-side date sort across
+ * multiple collections (Insights, Case Studies, Conferences, Webinars).
  *
- * Problem: Webflow's native Search index only stores Search Title, snippet
- * text, and Page URL — no CMS date field — so results render in relevance
- * order, not chronological order.
+ * Problem: Webflow's native Search index has no CMS date field, so results
+ * render in relevance order, not chronological order.
  *
- * Approach: after native Search renders its results list on /search, for each
- * result whose URL is under /insights/, fetch that page and read the visible
- * "<Badge> <date>" caption rendered in its hero
- * (.qs-section-hero-insight .caption, e.g. "Article 17 July 2026"). Parse the
- * date out, sort dated Insights results newest → oldest, and reorder the DOM.
- * Non-Insights results (Conferences/Solutions/Webinars) and any Insights
- * result whose date couldn't be parsed are left in their original relative
- * order, appended after the dated ones.
+ * Approach: after native Search renders its results list on /search, for
+ * each result whose URL matches a known "has a visible date" collection,
+ * fetch that page and read the date rendered in its hero markup. Sort ALL
+ * dated items together — newest → oldest — regardless of which collection
+ * they came from. Items from collections with no on-page date (Solutions,
+ * Magazines) or static pages are left in their original relative order and
+ * appended after the dated ones.
  *
- * Scope: pilot — Insights only. Only runs on /search. Max 10 results per
- * search (no pagination), fetched in parallel, so this stays cheap. Extending
- * to other collections later just means adding their own caption selector /
- * URL-prefix check below.
+ * This replaces the earlier "Insights-only, dated-Insights-first" version.
+ * That version treated every non-Insights result as undated, so it always
+ * got pushed below the whole Insights block even when it was more recent.
+ * Now every collection with a real date gets extracted and everything is
+ * sorted into one list.
+ *
+ * Scope: Max 10 results per search (no pagination), fetched in parallel,
+ * so this stays cheap. Results with no matching collection config skip the
+ * fetch entirely (no point fetching Solutions/Magazines/static pages —
+ * they have no date to find).
  *
  * Hooks: .qs-search-list (results wrapper), .qs-search-item (each result),
- * a[href*="/insights/"] (link inside each result).
+ * <a href> inside each result (used to identify collection + fetch page).
  */
 
-const DATE_REGEX =
-	/\b(\d{1,2}\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})\b/;
+// Ordered by URL prefix. First match wins — prefixes must not collide.
+const COLLECTIONS = [
+	{
+		name: "insights",
+		urlPrefix: "/insights/",
+		selector: ".qs-section.qs-section-hero.qs-section-hero-insight .caption",
+	},
+	{
+		name: "case-studies",
+		urlPrefix: "/case-studies/",
+		// Same template family as Insights, distinguished by extra classes
+		selector: ".qs-section-hero-insight .caption.reversed.label-unwrap",
+	},
+	{
+		name: "conference",
+		urlPrefix: "/conference/",
+		selector: ".qs-conference-header .body",
+	},
+	{
+		name: "webinars",
+		urlPrefix: "/webinars/",
+		// Page has two session slots (Session 1 / Session 2); first .body
+		// found is the primary/earliest session time, which is what we want.
+		selector: ".qs-new-webinar-hero-wrapper .body",
+	},
+	// Solutions and Magazines intentionally out of scope for this pass
+	// (pending pilot results). Magazines has a Publication Date field in
+	// the CMS but nothing on the frontend renders it yet. They — and any
+	// static page — fall through to "undated" without a network call.
+];
 
-async function extractInsightDate(url) {
+const MONTH_NAMES =
+	"January|February|March|April|May|June|July|August|September|October|November|December";
+
+// Tried in order. First pattern that matches wins.
+const DATE_PATTERNS = [
+	// Conference date ranges: "9 - 10 July 2026" / "24-25 June 2027".
+	// Captures the START day (group 1) plus the trailing "Month year"
+	// (group 2) — the end day is discarded, we sort on the start date.
+	new RegExp(`\\b(\\d{1,2})\\s*-\\s*\\d{1,2}\\s+((?:${MONTH_NAMES})\\s+\\d{4})\\b`),
+	// "17 July 2026" / "Article 17 July 2026"
+	new RegExp(`\\b(\\d{1,2}\\s+(?:${MONTH_NAMES})\\s+\\d{4})\\b`),
+	// "8/7/2026 8:00 AM" / "8/7/2026"
+	/\b(\d{1,2}\/\d{1,2}\/\d{4}(?:\s+\d{1,2}:\d{2}\s*(?:AM|PM))?)\b/i,
+];
+
+function getCollectionConfig(href) {
+	if (!href) return null;
+	return COLLECTIONS.find((c) => href.includes(c.urlPrefix)) || null;
+}
+
+function parseDateFromText(text) {
+	// Range pattern has two capture groups (start day + "Month year") that
+	// need to be joined; every other pattern has one group that's already
+	// a complete, parseable date string.
+	const rangeMatch = text.match(DATE_PATTERNS[0]);
+	if (rangeMatch) {
+		const parsed = new Date(`${rangeMatch[1]} ${rangeMatch[2]}`);
+		if (!isNaN(parsed)) return parsed;
+	}
+
+	for (const pattern of DATE_PATTERNS.slice(1)) {
+		const match = text.match(pattern);
+		if (match) {
+			const parsed = new Date(match[1]);
+			if (!isNaN(parsed)) return parsed;
+		}
+	}
+	return null;
+}
+
+async function extractDate(url, selector) {
 	try {
 		const res = await fetch(url, { credentials: "same-origin" });
 		if (!res.ok) return null;
@@ -34,16 +107,10 @@ async function extractInsightDate(url) {
 		const html = await res.text();
 		const doc = new DOMParser().parseFromString(html, "text/html");
 
-		const captionEl = doc.querySelector(
-			".qs-section.qs-section-hero.qs-section-hero-insight .caption"
-		);
-		if (!captionEl) return null;
+		const dateEl = doc.querySelector(selector);
+		if (!dateEl) return null;
 
-		const match = captionEl.textContent.match(DATE_REGEX);
-		if (!match) return null;
-
-		const parsed = new Date(match[1]);
-		return isNaN(parsed) ? null : parsed;
+		return parseDateFromText(dateEl.textContent);
 	} catch (err) {
 		console.warn("[search-sort] fetch failed for", url, err);
 		return null;
@@ -56,20 +123,29 @@ async function sortSearchResultsByDate(resultsWrapper) {
 
 	const withDates = await Promise.all(
 		items.map(async (item) => {
-			const link = item.querySelector('a[href*="/insights/"]');
+			const link = item.querySelector("a[href]");
 			const href = link?.getAttribute("href");
-			const date = href ? await extractInsightDate(href) : null;
-			return { item, date };
+			const config = getCollectionConfig(href);
+
+			// No known date-bearing collection for this URL — skip the
+			// fetch entirely, it stays undated.
+			if (!config) return { item, date: null };
+
+			const date = await extractDate(href, config.selector);
+			return { item, date, collection: config.name };
 		})
 	);
 
+	// Single unified sort: every dated item, regardless of collection,
+	// newest first. Undated items keep their original relative order and
+	// are appended after.
 	const dated = withDates.filter((r) => r.date).sort((a, b) => b.date - a.date);
 	const undated = withDates.filter((r) => !r.date);
 
 	// TEMP DEBUG — remove once confirmed working on live
 	console.log(
 		"[search-sort] dated:",
-		dated.map((r) => r.date.toDateString()),
+		dated.map((r) => `${r.collection}: ${r.date.toDateString()}`),
 		"| undated count:",
 		undated.length
 	);
@@ -77,7 +153,8 @@ async function sortSearchResultsByDate(resultsWrapper) {
 	[...dated, ...undated].forEach((r) => resultsWrapper.appendChild(r.item));
 }
 
-// Exportable function to sort native Webflow Search results by date (Insights pilot)
+// Exportable function to sort native Webflow Search results by date
+// across multiple collections.
 export function functionSearchSort() {
 	if (!window.location.pathname.includes("/search")) return;
 
@@ -102,8 +179,7 @@ export function functionSearchSort() {
 	observer.observe(resultsWrapper, { childList: true });
 
 	// Native Search may have already finished rendering by the time this
-	// script runs (results are not always a *future* mutation from our
-	// point of view) — in that case MutationObserver alone never fires.
+	// script runs — in that case MutationObserver alone never fires.
 	// Poll briefly for a stable, non-empty item count, then sort once.
 	let stableChecks = 0;
 	let lastCount = -1;

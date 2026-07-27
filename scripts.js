@@ -59,13 +59,13 @@ import { functionToggleShare } from "./modules/toggle/toggle-share.js";
 import { functionCookieSettingsButton } from "./modules/consent/cookie-settings.js";
 import { functionInsightsTopicFilter } from "./modules/finsweet/insights-topic-filter.js";
 import { functionSearchClearFilters } from "./modules/finsweet/search-clear-filters.js";
-import { functionHideZeroFilters } from "./modules/finsweet/hide-zero-filters.js";
+import { functionHideZeroFilters } from "./modules/finsweet/hide-zero-filters.js"; 
 import { functionSearchSort } from "./modules/interactive/search-sort.js";
 import { initCountdownFooterOffset } from './modules/countdown/footer-offset.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## ES - Build V1.2 [Conference Countdown Footer Visibility] ##"); // ADD THIS LINE
+  console.log("## ES - Build V2.0 [Search Sorting] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
