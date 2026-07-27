@@ -1,6 +1,6 @@
 /**
  * Native Webflow Search results — unified client-side date sort across
- * multiple collections (Insights, Case Studies, Conferences, Webinars).
+ * Insights, Case Studies, and Webinars.
  *
  * Problem: Webflow's native Search index has no CMS date field, so results
  * render in relevance order, not chronological order.
@@ -9,20 +9,20 @@
  * each result whose URL matches a known "has a visible date" collection,
  * fetch that page and read the date rendered in its hero markup. Sort ALL
  * dated items together — newest → oldest — regardless of which collection
- * they came from. Items from collections with no on-page date (Solutions,
- * Magazines) or static pages are left in their original relative order and
- * appended after the dated ones.
+ * they came from. Items from collections outside this scope (Conferences,
+ * Solutions, Magazines) or static pages are left in their original
+ * relative order and appended after the dated ones.
  *
- * This replaces the earlier "Insights-only, dated-Insights-first" version.
- * That version treated every non-Insights result as undated, so it always
- * got pushed below the whole Insights block even when it was more recent.
- * Now every collection with a real date gets extracted and everything is
- * sorted into one list.
+ * Conferences are deliberately excluded: the header component lets editors
+ * pick a collection item, but the rest of each conference page is manually
+ * authored, so the visible date text isn't reliably tied to that specific
+ * page's item (confirmed by testing — the same date text appeared across
+ * multiple different conference pages). DOM-scraping isn't safe there.
  *
  * Scope: Max 10 results per search (no pagination), fetched in parallel,
  * so this stays cheap. Results with no matching collection config skip the
- * fetch entirely (no point fetching Solutions/Magazines/static pages —
- * they have no date to find).
+ * fetch entirely (no point fetching Conferences/Solutions/Magazines/static
+ * pages — nothing reliable to find).
  *
  * Hooks: .qs-search-list (results wrapper), .qs-search-item (each result),
  * <a href> inside each result (used to identify collection + fetch page).
@@ -42,21 +42,23 @@ const COLLECTIONS = [
 		selector: ".qs-section-hero-insight .caption.reversed.label-unwrap",
 	},
 	{
-		name: "conference",
-		urlPrefix: "/conference/",
-		selector: ".qs-conference-header .body",
-	},
-	{
 		name: "webinars",
 		urlPrefix: "/webinars/",
 		// Page has two session slots (Session 1 / Session 2); first .body
 		// found is the primary/earliest session time, which is what we want.
 		selector: ".qs-new-webinar-hero-wrapper .body",
 	},
-	// Solutions and Magazines intentionally out of scope for this pass
-	// (pending pilot results). Magazines has a Publication Date field in
-	// the CMS but nothing on the frontend renders it yet. They — and any
-	// static page — fall through to "undated" without a network call.
+	// Conferences intentionally excluded: the header component lets editors
+	// pick a collection item, but the rest of the page (including the
+	// visible date text) is manually authored per static page — so the
+	// rendered date isn't reliably tied to that page's specific item.
+	// DOM-scraping isn't safe here. Left out of scope until a different
+	// approach is decided (e.g. a hand-maintained slug → date map).
+	//
+	// Solutions and Magazines also excluded: no on-page date to scrape
+	// (Magazines has a Publication Date field in the CMS but nothing on
+	// the frontend renders it yet). They — and any static page — fall
+	// through to "undated" without a network call.
 ];
 
 const MONTH_NAMES =
@@ -64,10 +66,6 @@ const MONTH_NAMES =
 
 // Tried in order. First pattern that matches wins.
 const DATE_PATTERNS = [
-	// Conference date ranges: "9 - 10 July 2026" / "24-25 June 2027".
-	// Captures the START day (group 1) plus the trailing "Month year"
-	// (group 2) — the end day is discarded, we sort on the start date.
-	new RegExp(`\\b(\\d{1,2})\\s*-\\s*\\d{1,2}\\s+((?:${MONTH_NAMES})\\s+\\d{4})\\b`),
 	// "17 July 2026" / "Article 17 July 2026"
 	new RegExp(`\\b(\\d{1,2}\\s+(?:${MONTH_NAMES})\\s+\\d{4})\\b`),
 	// "8/7/2026 8:00 AM" / "8/7/2026"
@@ -79,17 +77,22 @@ function getCollectionConfig(href) {
 	return COLLECTIONS.find((c) => href.includes(c.urlPrefix)) || null;
 }
 
-function parseDateFromText(text) {
-	// Range pattern has two capture groups (start day + "Month year") that
-	// need to be joined; every other pattern has one group that's already
-	// a complete, parseable date string.
-	const rangeMatch = text.match(DATE_PATTERNS[0]);
-	if (rangeMatch) {
-		const parsed = new Date(`${rangeMatch[1]} ${rangeMatch[2]}`);
-		if (!isNaN(parsed)) return parsed;
-	}
+// Fallback only: used when a URL already matched a known date-bearing
+// collection (so it's guaranteed to be Insights/Case Studies/Webinars,
+// never a Conferences/Solutions/Magazines/static page) but the on-page
+// selector didn't yield a parseable date. Extracts a bare 4-digit year
+// from the URL path and treats it as Jan 1 of that year. Low-precision
+// (year only) since it's a last resort, not the primary signal.
+function extractYearFromUrl(href) {
+	const match = href.match(/\/(20\d{2})(?:\/|$)/);
+	if (!match) return null;
+	const year = Number(match[1]);
+	const parsed = new Date(year, 0, 1);
+	return isNaN(parsed) ? null : parsed;
+}
 
-	for (const pattern of DATE_PATTERNS.slice(1)) {
+function parseDateFromText(text) {
+	for (const pattern of DATE_PATTERNS) {
 		const match = text.match(pattern);
 		if (match) {
 			const parsed = new Date(match[1]);
@@ -131,8 +134,19 @@ async function sortSearchResultsByDate(resultsWrapper) {
 			// fetch entirely, it stays undated.
 			if (!config) return { item, date: null };
 
-			const date = await extractDate(href, config.selector);
-			return { item, date, collection: config.name };
+			let date = await extractDate(href, config.selector);
+			let source = "selector";
+
+			// Selector matched no element, or the element's text didn't
+			// parse — fall back to a bare year pulled from the URL itself.
+			// Safe here specifically because `config` is non-null, i.e.
+			// this URL already belongs to a known date-bearing collection.
+			if (!date) {
+				date = extractYearFromUrl(href);
+				source = "url-year-fallback";
+			}
+
+			return { item, date, collection: config.name, source };
 		})
 	);
 
@@ -145,7 +159,7 @@ async function sortSearchResultsByDate(resultsWrapper) {
 	// TEMP DEBUG — remove once confirmed working on live
 	console.log(
 		"[search-sort] dated:",
-		dated.map((r) => `${r.collection}: ${r.date.toDateString()}`),
+		dated.map((r) => `${r.collection} (${r.source}): ${r.date.toDateString()}`),
 		"| undated count:",
 		undated.length
 	);
