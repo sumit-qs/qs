@@ -2,8 +2,8 @@
  * Native Webflow Search results — two-tier priority sort.
  *
  * PRIORITY ORDER
- *   Tier 1: static pages (anything not matching a known CMS collection URL)
- *   Tier 2: CMS collection items (Insights, Case Studies, Webinars, Conferences)
+ *   Tier 1: CMS collection items (Insights, Case Studies, Webinars, Conferences)
+ *   Tier 2: static pages (anything not matching a known CMS collection URL)
  * Tier 1 always renders entirely above Tier 2 — this is a hard priority
  * split, not a blended sort.
  *
@@ -276,7 +276,7 @@ async function sortSearchResultsByDate(resultsWrapper) {
 		)
 	);
 
-	[...tier1Sorted, ...tier2Sorted].forEach((r) => resultsWrapper.appendChild(r.item));
+	[...tier2Sorted, ...tier1Sorted].forEach((r) => resultsWrapper.appendChild(r.item));
 }
 
 // Exportable function to sort native Webflow Search results: static pages
