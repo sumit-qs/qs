@@ -49,6 +49,62 @@ const SELECTORS = {
 
 const DEFAULT_LOCALE = "en-US";
 const DATE_TIME_FORMAT_OPTIONS = { dateStyle: "long", timeStyle: "short" };
+
+// Breakpoint that mirrors the Webflow "Mobile (P)" breakpoint used by
+// .qs-webinar-layout (visible in Designer as "Affects 479px and below").
+const MOBILE_BREAKPOINT_QUERY = "(max-width: 479px)";
+
+// Mirrors the .qs-webinar-layout flex styling exactly, so that
+// .qs-webinar-past (backend-toggled, no Designer-authored styles of its own)
+// renders identically once it's shown — including the partner-logo slot the
+// user will add to match .qs-webinar-layout's structure.
+const PAST_LAYOUT_STYLES = {
+	desktop: {
+		display: "flex",
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		gap: "32px"
+	},
+	mobile: {
+		display: "flex",
+		flexDirection: "column",
+		justifyContent: "space-between",
+		alignItems: "flex-start",
+		gap: "32px"
+	}
+};
+
+let mobileMediaQuery;
+const trackedPastRoots = new Set();
+
+function applyPastLayoutStyles(pastRoot) {
+	if (!pastRoot) return;
+	const isMobile = mobileMediaQuery ? mobileMediaQuery.matches : false;
+	const styles = isMobile ? PAST_LAYOUT_STYLES.mobile : PAST_LAYOUT_STYLES.desktop;
+	Object.assign(pastRoot.style, styles);
+}
+
+function ensureResponsiveTracking(pastRoot) {
+	if (!pastRoot || trackedPastRoots.has(pastRoot)) return;
+	trackedPastRoots.add(pastRoot);
+	if (!mobileMediaQuery && typeof window !== "undefined" && typeof window.matchMedia === "function") {
+		mobileMediaQuery = window.matchMedia(MOBILE_BREAKPOINT_QUERY);
+	}
+	if (mobileMediaQuery) {
+		const handleChange = () => {
+			// Only re-apply while the wrapper is actually showing (past state).
+			if (pastRoot.style.display !== "none") applyPastLayoutStyles(pastRoot);
+		};
+		if (typeof mobileMediaQuery.addEventListener === "function") {
+			mobileMediaQuery.addEventListener("change", handleChange);
+		} else if (typeof mobileMediaQuery.addListener === "function") {
+			// Safari < 14 fallback
+			mobileMediaQuery.addListener(handleChange);
+		}
+	}
+}
+
 const TIME_ZONE_COUNTRY_OVERRIDES = {
 	"Europe/London": "United Kingdom",
 	"Europe/Dublin": "Ireland",
@@ -536,7 +592,8 @@ function updatePastFutureVisibility(wrapper, timestamps, now) {
 
 	if (isPast) {
 		convertedRoot.style.display = "none";
-		pastRoot.style.display = "flex";
+		ensureResponsiveTracking(pastRoot);
+		applyPastLayoutStyles(pastRoot);
 	} else {
 		convertedRoot.style.display = "";
 		pastRoot.style.display = "none";

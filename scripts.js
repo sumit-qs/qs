@@ -65,7 +65,7 @@ import { initCountdownFooterOffset } from './modules/countdown/footer-offset.js'
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## ES - Build V4.0 [Priority order flip - Search Sorting] ##"); // ADD THIS LINE
+  console.log("## ES - Build V5.0 [Webinar Partner stylign for past dated wrappers] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
