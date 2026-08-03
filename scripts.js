@@ -62,10 +62,11 @@ import { functionSearchClearFilters } from "./modules/finsweet/search-clear-filt
 import { functionHideZeroFilters } from "./modules/finsweet/hide-zero-filters.js"; 
 import { functionSearchSort } from "./modules/interactive/search-sort.js";
 import { initCountdownFooterOffset } from './modules/countdown/footer-offset.js';
+import { functionCaseStudyBento } from "./modules/interactive/case-study-bento.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## ES - Build V5.0 [Webinar Partner stylign for past dated wrappers] ##"); // ADD THIS LINE
+  console.log("## ES - Build V6.0 [Case Study Bento Grid] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -228,6 +229,7 @@ document.addEventListener("DOMContentLoaded", function () {
   functionHideZeroFilters();
   functionSearchSort();
   initCountdownFooterOffset();
+  functionCaseStudyBento();
 
   }
 });
