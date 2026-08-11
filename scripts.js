@@ -66,7 +66,7 @@ import { functionCaseStudyBento } from "./modules/interactive/case-study-bento.j
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## ES - Build V6.0 [Case Study Bento Grid] ##"); // ADD THIS LINE
+  console.log("## ES - Build V6.1 [Case Study Bento Grid - custom order] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
