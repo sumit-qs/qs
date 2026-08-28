@@ -64,10 +64,11 @@ import { functionSearchSort } from "./modules/interactive/search-sort.js";
 import { initCountdownFooterOffset } from './modules/countdown/footer-offset.js';
 import { functionCaseStudyBento } from "./modules/interactive/case-study-bento.js";
 import { initHubspotPopup } from './modules/hubspot/hubspot-popup.js';
+import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## Build V.07 [Hubspot Popup Form Trigger Logic] ##"); // ADD THIS LINE
+  console.log("## Build V.08 [Finsweet Filter Scroll Fix] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -232,6 +233,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initCountdownFooterOffset();
   functionCaseStudyBento();
   initHubspotPopup();
+  functionFilterScroll();
 
   }
 });
