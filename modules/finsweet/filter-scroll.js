@@ -1,21 +1,16 @@
 /**
  * Filter Scroll — Desktop UX enhancement for .qs-filter-wrapper
  *
- * Intercepts wheel events over the left filter panel so the filter list
- * scrolls independently from the page. Once the filter list hits its
- * top or bottom boundary, scroll control passes back to the page.
- *
- * - Measures true visible height by summing .qs-form-wrapper direct
- *   children offsetHeights + flex gap — fixes scrollbar track length
- * - Wheel boundary uses wrapper.scrollHeight which is reliable for
- *   scroll range even when inflated, since height is capped correctly
- * - Dynamic height: hugs content when collapsed, caps at viewport when expanded
- * - Recalculates on first scroll (GSAP pin not active at init)
- * - Scrollbar hidden by default, thin 4px bar appears on hover
- * - Click listeners on accordion heads recalculate height after open/close
- * - GSAP-aware: uses gsap.to(wrapper, {scrollTop}) when GSAP is present
- * - Desktop only: no-ops below 992px (Webflow tablet breakpoint)
- * - Works across all .qs-filter-wrapper instances on the page
+ * - Filter panel scrolls independently from page
+ * - Scroll hands back to page at top/bottom boundary
+ * - Height derived from summing .qs-form-wrapper children + flex gap
+ * - logicalMaxScroll WeakMap drives all scroll boundaries
+ *   (wrapper.scrollHeight is permanently stale and never used)
+ * - Viewport cap uses 85vh — stable regardless of rect.top timing
+ * - Recalculates on first scroll, accordion click, and resize
+ * - Scrollbar hidden by default, thin on hover
+ * - GSAP-aware scroll
+ * - Desktop only (>= 992px)
  */
 
 export function functionFilterScroll() {
@@ -24,6 +19,8 @@ export function functionFilterScroll() {
   function initFilterScroll() {
     const wrappers = document.querySelectorAll('.qs-filter-wrapper');
     if (!wrappers.length) return;
+
+    const logicalMaxScroll = new WeakMap();
 
     const style = document.createElement('style');
     style.textContent = `
@@ -58,15 +55,13 @@ export function functionFilterScroll() {
     }
 
     function getNaturalHeight(wrapper) {
-      // Sum direct children of .qs-form-wrapper + flex gaps
-      // This gives true visible height regardless of accordion state
-      // Do NOT use .qs-form-wrapper offsetHeight — it includes
-      // overflow from collapsed accordion content
       const formWrapper = wrapper.querySelector('.qs-form-wrapper');
       if (formWrapper) {
         const children = [...formWrapper.children];
         const gap = getFlexGap(formWrapper);
-        const sumHeights = children.reduce((acc, el) => acc + el.offsetHeight, 0);
+        const sumHeights = children.reduce(
+          (acc, el) => acc + el.offsetHeight, 0
+        );
         const totalGaps = Math.max(children.length - 1, 0) * gap;
         return sumHeights + totalGaps;
       }
@@ -80,40 +75,35 @@ export function functionFilterScroll() {
       wrapper.style.setProperty('overflow-y', 'hidden', 'important');
       wrapper.style.height = 'auto';
       wrapper.style.maxHeight = 'none';
-
-      // Force layout flush before measuring
       void wrapper.offsetHeight;
 
       const naturalHeight = getNaturalHeight(wrapper);
-      const rect = wrapper.getBoundingClientRect();
 
-      // Cap rect.top — before GSAP pin activates rect.top can be
-      // large and cause underestimation of available space
-      const topOffset = Math.min(rect.top, 200);
-      const viewportAvailable = Math.max(
-        window.innerHeight - topOffset - 40,
-        200
-      );
-
+      // 85vh is stable regardless of when rect.top is read
+      // relative to GSAP pin activation
+      const viewportAvailable = Math.max(window.innerHeight * 0.85, 200);
       const targetHeight = Math.min(naturalHeight, viewportAvailable);
+      const realMaxScroll = Math.max(naturalHeight - targetHeight, 0);
 
-      // Clamp scrollTop before restoring scroll
-      const maxScroll = Math.max(naturalHeight - targetHeight, 0);
-      if (wrapper.scrollTop > maxScroll) {
-        wrapper.scrollTop = maxScroll;
+      logicalMaxScroll.set(wrapper, realMaxScroll);
+
+      if (wrapper.scrollTop > realMaxScroll) {
+        wrapper.scrollTop = realMaxScroll;
       }
 
       wrapper.style.height = `${targetHeight}px`;
       wrapper.style.maxHeight = `${targetHeight}px`;
-
       void wrapper.offsetHeight;
       wrapper.style.setProperty('overflow-y', 'auto', 'important');
     }
 
     wrappers.forEach(wrapper => {
-      setDynamicHeight(wrapper);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setDynamicHeight(wrapper);
+        });
+      });
 
-      // Accordion heads — 0s transition, double rAF reads settled DOM
       const heads = wrapper.querySelectorAll(
         '.qs-accordion-head-filters, .qs-accordion-button-expertise'
       );
@@ -127,10 +117,16 @@ export function functionFilterScroll() {
         });
       });
 
+      // Clamp native scroll (scrollbar drag) to logical boundary
+      wrapper.addEventListener('scroll', () => {
+        const maxScroll = logicalMaxScroll.get(wrapper) ?? 0;
+        if (wrapper.scrollTop > maxScroll) wrapper.scrollTop = maxScroll;
+        if (wrapper.scrollTop < 0) wrapper.scrollTop = 0;
+      });
+
       wrapper.addEventListener('wheel', function (e) {
-        // Use scrollHeight for wheel boundary — reliable for scroll
-        // range even when inflated, because height is capped correctly
-        const maxScroll = wrapper.scrollHeight - wrapper.clientHeight;
+        // Never use wrapper.scrollHeight — permanently stale
+        const maxScroll = logicalMaxScroll.get(wrapper) ?? 0;
         if (maxScroll <= 0) return;
 
         const atTop    = wrapper.scrollTop <= 0;
@@ -159,15 +155,12 @@ export function functionFilterScroll() {
       }, { passive: false });
     });
 
-    // Recalculate once after first scroll
-    // GSAP pin is not active at DOMContentLoaded so rect.top
-    // is the unpinned position — first scroll settles it correctly
-    let recalcOnScroll = true;
+    // Recalculate once on first scroll — GSAP pin fully active by then
+    let recalcDone = false;
     window.addEventListener('scroll', () => {
-      if (recalcOnScroll) {
-        recalcOnScroll = false;
-        wrappers.forEach(setDynamicHeight);
-      }
+      if (recalcDone) return;
+      recalcDone = true;
+      wrappers.forEach(setDynamicHeight);
     }, { passive: true });
 
     window.addEventListener('resize', () => {
