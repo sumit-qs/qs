@@ -1,18 +1,15 @@
 /**
  * Filter Scroll — Desktop UX enhancement for .qs-filter-wrapper
  *
- * - Filter panel scrolls independently from page
- * - Scroll hands back to page at top/bottom boundary
- * - Height derived from summing .qs-form-wrapper children + flex gap
- *   (avoids stale scrollHeight from collapsed accordion overflow)
- * - maxScroll calculated live on every wheel event from getNaturalHeight
- * - Viewport cap uses 85vh — stable regardless of rect.top timing
- * - Accordion click uses 200ms timeout — Finsweet expands asynchronously
- *   so double rAF (~32ms) reads wrong intermediate heights
- * - Recalculates on first scroll, accordion click, and resize
- * - Scrollbar hidden by default, thin on hover
- * - GSAP-aware scroll
- * - Desktop only (>= 992px)
+ * The page uses tua-body-scroll-lock which prevents all wheel/touch scroll
+ * on elements not explicitly whitelisted. bodyScrollLock.lock(wrapper)
+ * whitelists each filter wrapper, enabling native browser scroll on it.
+ *
+ * setDynamicHeight sets explicit height = true visible content height
+ * (sum of .qs-form-wrapper children + flex gap) so the browser reconciles
+ * scrollHeight correctly and the scrollbar track is proportional.
+ *
+ * Desktop only (>= 992px).
  */
 
 export function functionFilterScroll() {
@@ -59,9 +56,7 @@ export function functionFilterScroll() {
       if (formWrapper) {
         const children = [...formWrapper.children];
         const gap = getFlexGap(formWrapper);
-        const sumHeights = children.reduce(
-          (acc, el) => acc + el.offsetHeight, 0
-        );
+        const sumHeights = children.reduce((acc, el) => acc + el.offsetHeight, 0);
         const totalGaps = Math.max(children.length - 1, 0) * gap;
         return sumHeights + totalGaps;
       }
@@ -69,16 +64,7 @@ export function functionFilterScroll() {
       return inner ? inner.offsetHeight : wrapper.offsetHeight;
     }
 
-    function getMaxScroll(wrapper) {
-      const naturalHeight = getNaturalHeight(wrapper);
-      const viewportAvailable = Math.max(window.innerHeight * 0.85, 200);
-      const targetHeight = Math.min(naturalHeight, viewportAvailable);
-      return Math.max(naturalHeight - targetHeight, 0);
-    }
-
     function setDynamicHeight(wrapper) {
-      if (window.gsap) window.gsap.killTweensOf(wrapper);
-
       wrapper.style.setProperty('overflow-y', 'hidden', 'important');
       wrapper.style.height = 'auto';
       wrapper.style.maxHeight = 'none';
@@ -97,10 +83,20 @@ export function functionFilterScroll() {
       wrapper.style.maxHeight = `${targetHeight}px`;
       void wrapper.offsetHeight;
       wrapper.style.setProperty('overflow-y', 'auto', 'important');
+
+      // Re-whitelist after overflow change
+      if (window.bodyScrollLock?.lock) {
+        window.bodyScrollLock.lock(wrapper);
+      }
     }
 
     wrappers.forEach(wrapper => {
-      // Delay init — page layout and GSAP pin need to settle first
+      // Whitelist wrapper with tua-body-scroll-lock
+      // Without this, the scroll lock library prevents all scroll on this element
+      if (window.bodyScrollLock?.lock) {
+        window.bodyScrollLock.lock(wrapper);
+      }
+
       setTimeout(() => setDynamicHeight(wrapper), 300);
 
       const heads = wrapper.querySelectorAll(
@@ -108,44 +104,11 @@ export function functionFilterScroll() {
       );
       heads.forEach(head => {
         head.addEventListener('click', () => {
-          // 200ms — Finsweet accordion expands asynchronously
-          // double rAF (~32ms) reads wrong intermediate heights
           setTimeout(() => setDynamicHeight(wrapper), 200);
         });
       });
-
-      wrapper.addEventListener('wheel', function (e) {
-        // Calculate live on every tick — never read from cache or scrollHeight
-        const maxScroll = getMaxScroll(wrapper);
-        if (maxScroll <= 0) return;
-
-        const atTop    = wrapper.scrollTop <= 0;
-        const atBottom = wrapper.scrollTop >= maxScroll - 1;
-        const goingUp  = e.deltaY < 0;
-        const goingDown = e.deltaY > 0;
-
-        if ((atTop && goingUp) || (atBottom && goingDown)) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (window.gsap) {
-          window.gsap.to(wrapper, {
-            scrollTop: Math.min(
-              Math.max(wrapper.scrollTop + e.deltaY, 0),
-              maxScroll
-            ),
-            duration: 0.25,
-            ease: 'power2.out',
-            overwrite: 'auto'
-          });
-        } else {
-          wrapper.scrollTop += e.deltaY;
-        }
-      }, { passive: false });
     });
 
-    // Recalculate once on first scroll — GSAP pin fully active by then
     let recalcDone = false;
     window.addEventListener('scroll', () => {
       if (recalcDone) return;
