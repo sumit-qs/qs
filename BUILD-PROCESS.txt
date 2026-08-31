@@ -17,7 +17,7 @@
       git add .
       git commit -m "your message here"
       git push
-
+      
 6. Wait ~30 seconds for GitHub Pages to deploy
 
 7. Hard refresh the live site (Cmd+Shift+R) to verify changes
