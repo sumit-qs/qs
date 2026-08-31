@@ -1,15 +1,23 @@
 /**
  * Filter Scroll — Desktop UX enhancement for .qs-filter-wrapper
  *
- * The page uses tua-body-scroll-lock which prevents all wheel/touch scroll
- * on elements not explicitly whitelisted. bodyScrollLock.lock(wrapper)
- * whitelists each filter wrapper, enabling native browser scroll on it.
+ * Architecture notes:
  *
- * setDynamicHeight sets explicit height = true visible content height
- * (sum of .qs-form-wrapper children + flex gap) so the browser reconciles
- * scrollHeight correctly and the scrollbar track is proportional.
+ * GSAP ScrollSmoother (normalizeScroll: true) intercepts ALL wheel events at
+ * the browser level and routes them to its smooth scroll system. Element-level
+ * wheel listeners never fire. The only reliable interception point is a
+ * document-level listener at CAPTURE phase with { passive: false }.
+ *
+ * tua-body-scroll-lock loads async and may not be available at DOMContentLoaded.
+ * We poll for it and call .lock(wrapper) once available to whitelist each
+ * filter wrapper as a scrollable element.
+ *
+ * Height is calculated by summing .qs-form-wrapper direct children offsetHeights
+ * + flex gap — avoids stale scrollHeight caused by Webflow accordion collapsed
+ * content retaining overflow in the browser scroll model.
  *
  * Desktop only (>= 992px).
+ * Works across all .qs-filter-wrapper instances on the page.
  */
 
 export function functionFilterScroll() {
@@ -19,6 +27,7 @@ export function functionFilterScroll() {
     const wrappers = document.querySelectorAll('.qs-filter-wrapper');
     if (!wrappers.length) return;
 
+    // ── Scrollbar styles ──────────────────────────────────────────────────────
     const style = document.createElement('style');
     style.textContent = `
       .qs-filter-wrapper {
@@ -46,11 +55,18 @@ export function functionFilterScroll() {
     `;
     document.head.appendChild(style);
 
+    // ── Height helpers ────────────────────────────────────────────────────────
+
     function getFlexGap(el) {
       const gap = parseFloat(getComputedStyle(el).gap || '0');
       return isNaN(gap) ? 0 : gap;
     }
 
+    /**
+     * Sum direct children of .qs-form-wrapper + flex gap.
+     * Uses offsetHeight (visible rendered height) — NOT scrollHeight, which
+     * includes hidden accordion overflow and caches stale expanded values.
+     */
     function getNaturalHeight(wrapper) {
       const formWrapper = wrapper.querySelector('.qs-form-wrapper');
       if (formWrapper) {
@@ -65,40 +81,115 @@ export function functionFilterScroll() {
     }
 
     function setDynamicHeight(wrapper) {
+      // Temporarily disable overflow so layout can reflow freely.
+      // Must use setProperty('important') because our injected CSS uses !important.
       wrapper.style.setProperty('overflow-y', 'hidden', 'important');
       wrapper.style.height = 'auto';
       wrapper.style.maxHeight = 'none';
+
+      // Force layout flush before measuring
       void wrapper.offsetHeight;
 
       const naturalHeight = getNaturalHeight(wrapper);
-      const viewportAvailable = Math.max(window.innerHeight * 0.85, 200);
+      const rect = wrapper.getBoundingClientRect();
+
+      // Use rect.top when it reflects a settled pinned position.
+      // Fall back to 120px safety offset if rect.top is unreliable (pre-pin).
+      const topOffset = (rect.top > 0 && rect.top < window.innerHeight)
+        ? rect.top
+        : 120;
+      const viewportAvailable = Math.max(window.innerHeight - topOffset - 40, 200);
       const targetHeight = Math.min(naturalHeight, viewportAvailable);
       const maxScroll = Math.max(naturalHeight - targetHeight, 0);
 
-      if (wrapper.scrollTop > maxScroll) {
-        wrapper.scrollTop = maxScroll;
-      }
+      // Clamp scroll position before restoring overflow
+      if (wrapper.scrollTop > maxScroll) wrapper.scrollTop = maxScroll;
 
       wrapper.style.height = `${targetHeight}px`;
       wrapper.style.maxHeight = `${targetHeight}px`;
+
+      // Force second layout flush before restoring scroll
       void wrapper.offsetHeight;
       wrapper.style.setProperty('overflow-y', 'auto', 'important');
 
-      // Re-whitelist after overflow change
+      // Re-whitelist with BSL after overflow change
       if (window.bodyScrollLock?.lock) {
         window.bodyScrollLock.lock(wrapper);
       }
     }
 
-    wrappers.forEach(wrapper => {
-      // Whitelist wrapper with tua-body-scroll-lock
-      // Without this, the scroll lock library prevents all scroll on this element
+    // ── BSL polling ───────────────────────────────────────────────────────────
+    // tua-body-scroll-lock loads async — poll until available
+
+    function waitForBSL(wrapper, attempts = 0) {
       if (window.bodyScrollLock?.lock) {
         window.bodyScrollLock.lock(wrapper);
+        return;
       }
+      if (attempts > 30) return; // give up after ~3s
+      setTimeout(() => waitForBSL(wrapper, attempts + 1), 100);
+    }
 
+    // ── Document-level capture wheel handler ──────────────────────────────────
+    // MUST be on document at capture phase.
+    // ScrollSmoother (normalizeScroll:true) intercepts wheel events before they
+    // reach element-level listeners. Capture phase fires before ScrollSmoother
+    // processes the event, allowing us to preventDefault and handle it ourselves.
+
+    const wheelHandler = (e) => {
+      wrappers.forEach(wrapper => {
+        const rect = wrapper.getBoundingClientRect();
+
+        // Check if pointer is over this wrapper
+        const over =
+          e.clientX >= rect.left && e.clientX <= rect.right &&
+          e.clientY >= rect.top  && e.clientY <= rect.bottom;
+        if (!over) return;
+
+        // Calculate real scroll boundary from current DOM state
+        const naturalHeight = getNaturalHeight(wrapper);
+        const topOffset = (rect.top > 0 && rect.top < window.innerHeight)
+          ? rect.top
+          : 120;
+        const viewportAvailable = Math.max(window.innerHeight - topOffset - 40, 200);
+        const targetHeight = Math.min(naturalHeight, viewportAvailable);
+        const maxScroll = Math.max(naturalHeight - targetHeight, 0);
+
+        // No overflow → let page scroll
+        if (maxScroll <= 0) return;
+
+        const atTop    = wrapper.scrollTop <= 0;
+        const atBottom = wrapper.scrollTop >= maxScroll - 1;
+        const goingUp  = e.deltaY < 0;
+        const goingDown = e.deltaY > 0;
+
+        // At boundary → hand back to page scroll
+        if ((atTop && goingUp) || (atBottom && goingDown)) return;
+
+        // Consume event and scroll filter wrapper
+        e.preventDefault();
+        e.stopPropagation();
+
+        wrapper.scrollTop = Math.min(
+          Math.max(wrapper.scrollTop + e.deltaY, 0),
+          maxScroll
+        );
+      });
+    };
+
+    document.addEventListener('wheel', wheelHandler, { passive: false, capture: true });
+
+    // ── Per-wrapper setup ─────────────────────────────────────────────────────
+
+    wrappers.forEach(wrapper => {
+      // Poll for BSL — loads async, may not exist at DOMContentLoaded
+      waitForBSL(wrapper);
+
+      // Init height after layout settles (GSAP pin needs time to activate)
       setTimeout(() => setDynamicHeight(wrapper), 300);
 
+      // Accordion click — Finsweet JS expands accordion asynchronously.
+      // 200ms is sufficient for DOM to settle after a 0s CSS transition.
       const heads = wrapper.querySelectorAll(
         '.qs-accordion-head-filters, .qs-accordion-button-expertise'
       );
@@ -109,6 +200,10 @@ export function functionFilterScroll() {
       });
     });
 
+    // ── Global recalculation ──────────────────────────────────────────────────
+
+    // Recalculate once on first scroll — GSAP pin fully active by then,
+    // so rect.top gives the true pinned position for viewportAvailable
     let recalcDone = false;
     window.addEventListener('scroll', () => {
       if (recalcDone) return;
