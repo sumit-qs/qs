@@ -4,10 +4,9 @@
  * - Filter panel scrolls independently from page
  * - Scroll hands back to page at top/bottom boundary
  * - Height derived from summing .qs-form-wrapper children + flex gap
- * - logicalMaxScroll WeakMap drives all scroll boundaries
- *   (wrapper.scrollHeight is permanently stale and never used)
+ * - maxScroll calculated live on every wheel event — no stale cache
  * - Viewport cap uses 85vh — stable regardless of rect.top timing
- * - Recalculates on first scroll, accordion click, and resize
+ * - Recalculates height on first scroll, accordion click, and resize
  * - Scrollbar hidden by default, thin on hover
  * - GSAP-aware scroll
  * - Desktop only (>= 992px)
@@ -19,8 +18,6 @@ export function functionFilterScroll() {
   function initFilterScroll() {
     const wrappers = document.querySelectorAll('.qs-filter-wrapper');
     if (!wrappers.length) return;
-
-    const logicalMaxScroll = new WeakMap();
 
     const style = document.createElement('style');
     style.textContent = `
@@ -69,6 +66,13 @@ export function functionFilterScroll() {
       return inner ? inner.offsetHeight : wrapper.offsetHeight;
     }
 
+    function getMaxScroll(wrapper) {
+      const naturalHeight = getNaturalHeight(wrapper);
+      const viewportAvailable = Math.max(window.innerHeight * 0.85, 200);
+      const targetHeight = Math.min(naturalHeight, viewportAvailable);
+      return Math.max(naturalHeight - targetHeight, 0);
+    }
+
     function setDynamicHeight(wrapper) {
       if (window.gsap) window.gsap.killTweensOf(wrapper);
 
@@ -78,17 +82,12 @@ export function functionFilterScroll() {
       void wrapper.offsetHeight;
 
       const naturalHeight = getNaturalHeight(wrapper);
-
-      // 85vh is stable regardless of when rect.top is read
-      // relative to GSAP pin activation
       const viewportAvailable = Math.max(window.innerHeight * 0.85, 200);
       const targetHeight = Math.min(naturalHeight, viewportAvailable);
-      const realMaxScroll = Math.max(naturalHeight - targetHeight, 0);
+      const maxScroll = Math.max(naturalHeight - targetHeight, 0);
 
-      logicalMaxScroll.set(wrapper, realMaxScroll);
-
-      if (wrapper.scrollTop > realMaxScroll) {
-        wrapper.scrollTop = realMaxScroll;
+      if (wrapper.scrollTop > maxScroll) {
+        wrapper.scrollTop = maxScroll;
       }
 
       wrapper.style.height = `${targetHeight}px`;
@@ -117,16 +116,9 @@ export function functionFilterScroll() {
         });
       });
 
-      // Clamp native scroll (scrollbar drag) to logical boundary
-      wrapper.addEventListener('scroll', () => {
-        const maxScroll = logicalMaxScroll.get(wrapper) ?? 0;
-        if (wrapper.scrollTop > maxScroll) wrapper.scrollTop = maxScroll;
-        if (wrapper.scrollTop < 0) wrapper.scrollTop = 0;
-      });
-
       wrapper.addEventListener('wheel', function (e) {
-        // Never use wrapper.scrollHeight — permanently stale
-        const maxScroll = logicalMaxScroll.get(wrapper) ?? 0;
+        // Calculate live — never read from cache or scrollHeight
+        const maxScroll = getMaxScroll(wrapper);
         if (maxScroll <= 0) return;
 
         const atTop    = wrapper.scrollTop <= 0;
@@ -155,7 +147,6 @@ export function functionFilterScroll() {
       }, { passive: false });
     });
 
-    // Recalculate once on first scroll — GSAP pin fully active by then
     let recalcDone = false;
     window.addEventListener('scroll', () => {
       if (recalcDone) return;
