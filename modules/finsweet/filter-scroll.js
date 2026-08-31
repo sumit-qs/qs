@@ -4,9 +4,12 @@
  * - Filter panel scrolls independently from page
  * - Scroll hands back to page at top/bottom boundary
  * - Height derived from summing .qs-form-wrapper children + flex gap
- * - maxScroll calculated live on every wheel event — no stale cache
+ *   (avoids stale scrollHeight from collapsed accordion overflow)
+ * - maxScroll calculated live on every wheel event from getNaturalHeight
  * - Viewport cap uses 85vh — stable regardless of rect.top timing
- * - Recalculates height on first scroll, accordion click, and resize
+ * - Accordion click uses 200ms timeout — Finsweet expands asynchronously
+ *   so double rAF (~32ms) reads wrong intermediate heights
+ * - Recalculates on first scroll, accordion click, and resize
  * - Scrollbar hidden by default, thin on hover
  * - GSAP-aware scroll
  * - Desktop only (>= 992px)
@@ -97,27 +100,22 @@ export function functionFilterScroll() {
     }
 
     wrappers.forEach(wrapper => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setDynamicHeight(wrapper);
-        });
-      });
+      // Delay init — page layout and GSAP pin need to settle first
+      setTimeout(() => setDynamicHeight(wrapper), 300);
 
       const heads = wrapper.querySelectorAll(
         '.qs-accordion-head-filters, .qs-accordion-button-expertise'
       );
       heads.forEach(head => {
         head.addEventListener('click', () => {
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              setDynamicHeight(wrapper);
-            });
-          });
+          // 200ms — Finsweet accordion expands asynchronously
+          // double rAF (~32ms) reads wrong intermediate heights
+          setTimeout(() => setDynamicHeight(wrapper), 200);
         });
       });
 
       wrapper.addEventListener('wheel', function (e) {
-        // Calculate live — never read from cache or scrollHeight
+        // Calculate live on every tick — never read from cache or scrollHeight
         const maxScroll = getMaxScroll(wrapper);
         if (maxScroll <= 0) return;
 
@@ -147,6 +145,7 @@ export function functionFilterScroll() {
       }, { passive: false });
     });
 
+    // Recalculate once on first scroll — GSAP pin fully active by then
     let recalcDone = false;
     window.addEventListener('scroll', () => {
       if (recalcDone) return;
