@@ -58,112 +58,110 @@ export function functionFilterScroll() {
 
     document.head.appendChild(style);
 
-    function setDynamicHeight(wrapper) {
-      const inner = wrapper.querySelector(
-        '.qs-form-container, form, .qs-form-wrapper'
-      );
+function setDynamicHeight(wrapper) {
+  const inner = wrapper.querySelector(
+    '.qs-form-container, form, .qs-form-wrapper'
+  );
 
-      /*
-       * 1. Fully disable wrapper scrolling while recalculating.
-       *
-       * Important:
-       * The injected stylesheet uses overflow-y: auto !important,
-       * so we need !important here as well.
-       */
-      wrapper.style.setProperty(
-        'overflow-y',
-        'hidden',
-        'important'
-      );
+  if (!inner) return;
 
-      wrapper.style.transition = 'none';
-      wrapper.style.height = 'auto';
-      wrapper.style.maxHeight = 'none';
+  wrapper.style.setProperty(
+    'overflow-y',
+    'hidden',
+    'important'
+  );
 
-      /*
-       * 2. Force browser layout flush.
-       *
-       * This makes sure the accordion's current opened/closed state
-       * has actually been committed before we measure it.
-       */
-      void wrapper.offsetHeight;
+  wrapper.style.height = 'auto';
+  wrapper.style.maxHeight = 'none';
 
-      /*
-       * 3. Measure CURRENT visible filter height.
-       *
-       * offsetHeight is intentional here.
-       * Do NOT use scrollHeight for naturalHeight.
-       */
-      const naturalHeight = inner
-        ? inner.offsetHeight
-        : wrapper.offsetHeight;
+  void wrapper.offsetHeight;
 
-      const rect = wrapper.getBoundingClientRect();
+  /*
+   * Build the natural height from CURRENT visible children,
+   * instead of trusting inner.offsetHeight / inner.scrollHeight.
+   */
+  let naturalHeight = 0;
 
-      const viewportAvailable = Math.max(
-        window.innerHeight - rect.top - 40,
-        200
-      );
+  const children = Array.from(inner.children);
 
-      /*
-       * Wrapper hugs content when content fits.
-       *
-       * If content exceeds viewport, wrapper is capped
-       * to the available viewport height.
-       */
-      const newHeight = Math.min(
-        naturalHeight,
-        viewportAvailable
-      );
+  children.forEach(child => {
+    const styles = window.getComputedStyle(child);
 
-      /*
-       * 4. Calculate the real valid scroll distance
-       * from CURRENT visible content.
-       */
-      const realMaxScroll = Math.max(
-        naturalHeight - newHeight,
-        0
-      );
-
-      /*
-       * If accordion collapse makes the content shorter,
-       * make sure we don't remain scrolled into old blank space.
-       */
-      if (wrapper.scrollTop > realMaxScroll) {
-        wrapper.scrollTop = realMaxScroll;
-      }
-
-      /*
-       * 5. Temporarily collapse the scroll viewport.
-       *
-       * This forces the browser to discard the previous
-       * native scrollbar geometry / expanded-state calculation.
-       */
-      wrapper.style.height = '0px';
-      wrapper.style.maxHeight = '0px';
-
-      void wrapper.offsetHeight;
-
-      /*
-       * 6. Apply the newly calculated CURRENT height.
-       */
-      wrapper.style.height = `${newHeight}px`;
-      wrapper.style.maxHeight = `${newHeight}px`;
-
-      /*
-       * Force another layout pass while overflow is still disabled.
-       */
-      void wrapper.offsetHeight;
-
-      /*
-       * 7. Restore native scrolling only after dimensions settle.
-       */
-      wrapper.style.setProperty(
-        'overflow-y',
-        'auto',
-        'important'
-      );
+    if (
+      styles.display === 'none' ||
+      styles.visibility === 'hidden'
+    ) {
+      return;
     }
+
+    const rect = child.getBoundingClientRect();
+
+    /*
+     * Skip collapsed accordion bodies.
+     *
+     * Your closed accordion content is effectively ~1px,
+     * so anything <= 1px is treated as collapsed.
+     */
+    if (
+      child.classList.contains('qs-accordion-content') &&
+      rect.height <= 1.5
+    ) {
+      return;
+    }
+
+    const marginTop =
+      parseFloat(styles.marginTop) || 0;
+
+    const marginBottom =
+      parseFloat(styles.marginBottom) || 0;
+
+    naturalHeight +=
+      rect.height +
+      marginTop +
+      marginBottom;
+  });
+
+  /*
+   * Include inner padding.
+   */
+  const innerStyles = window.getComputedStyle(inner);
+
+  naturalHeight +=
+    (parseFloat(innerStyles.paddingTop) || 0) +
+    (parseFloat(innerStyles.paddingBottom) || 0);
+
+  const rect = wrapper.getBoundingClientRect();
+
+  const viewportAvailable = Math.max(
+    window.innerHeight - rect.top - 40,
+    200
+  );
+
+  const newHeight = Math.min(
+    naturalHeight,
+    viewportAvailable
+  );
+
+  const realMaxScroll = Math.max(
+    naturalHeight - newHeight,
+    0
+  );
+
+  if (wrapper.scrollTop > realMaxScroll) {
+    wrapper.scrollTop = realMaxScroll;
+  }
+
+  wrapper.style.height = `${newHeight}px`;
+  wrapper.style.maxHeight = `${newHeight}px`;
+
+  void wrapper.offsetHeight;
+
+  wrapper.style.setProperty(
+    'overflow-y',
+    'auto',
+    'important'
+  );
+}
 
     wrappers.forEach(wrapper => {
       /*
