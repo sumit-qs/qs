@@ -68,7 +68,7 @@ import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Filter Scroll V1.10] ##"); // ADD THIS LINE
+  console.log("## [Filter Scroll V1.11] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
