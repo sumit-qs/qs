@@ -68,7 +68,7 @@ import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Filter Scroll V1.15] ##"); // ADD THIS LINE
+  console.log("## [Filter Scroll V1.15 | Commented] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -233,7 +233,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initCountdownFooterOffset();
   functionCaseStudyBento();
   initHubspotPopup();
-  functionFilterScroll();
+  // functionFilterScroll();
 
   }
 });
