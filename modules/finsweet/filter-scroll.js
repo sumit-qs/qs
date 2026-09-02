@@ -137,44 +137,53 @@ export function functionFilterScroll() {
     // processes the event, allowing us to preventDefault and handle it ourselves.
 
     const wheelHandler = (e) => {
-      wrappers.forEach(wrapper => {
+      // Find the first wrapper the pointer is over
+      let activeWrapper = null;
+      for (const wrapper of wrappers) {
         const rect = wrapper.getBoundingClientRect();
-
-        // Check if pointer is over this wrapper
-        const over =
+        if (
           e.clientX >= rect.left && e.clientX <= rect.right &&
-          e.clientY >= rect.top  && e.clientY <= rect.bottom;
-        if (!over) return;
+          e.clientY >= rect.top  && e.clientY <= rect.bottom
+        ) {
+          activeWrapper = wrapper;
+          break;
+        }
+      }
 
-        // Calculate real scroll boundary from current DOM state
-        const naturalHeight = getNaturalHeight(wrapper);
-        const topOffset = (rect.top > 0 && rect.top < window.innerHeight)
-          ? rect.top
-          : 120;
-        const viewportAvailable = Math.max(window.innerHeight - topOffset - 40, 200);
-        const targetHeight = Math.min(naturalHeight, viewportAvailable);
-        const maxScroll = Math.max(naturalHeight - targetHeight, 0);
+      // Pointer not over any filter wrapper — let page scroll normally
+      if (!activeWrapper) return;
 
-        // No overflow → let page scroll
-        if (maxScroll <= 0) return;
+      const wrapper = activeWrapper;
+      const rect = wrapper.getBoundingClientRect();
 
-        const atTop    = wrapper.scrollTop <= 0;
-        const atBottom = wrapper.scrollTop >= maxScroll - 1;
-        const goingUp  = e.deltaY < 0;
-        const goingDown = e.deltaY > 0;
+      // Calculate real scroll boundary from current DOM state
+      const naturalHeight = getNaturalHeight(wrapper);
+      const topOffset = (rect.top > 0 && rect.top < window.innerHeight)
+        ? rect.top
+        : 120;
+      const viewportAvailable = Math.max(window.innerHeight - topOffset - 40, 200);
+      const targetHeight = Math.min(naturalHeight, viewportAvailable);
+      const maxScroll = Math.max(naturalHeight - targetHeight, 0);
 
-        // At boundary → hand back to page scroll
-        if ((atTop && goingUp) || (atBottom && goingDown)) return;
+      // No overflow — pass through to page scroll, do NOT preventDefault
+      if (maxScroll <= 0) return;
 
-        // Consume event and scroll filter wrapper
-        e.preventDefault();
-        e.stopPropagation();
+      const atTop    = wrapper.scrollTop <= 0;
+      const atBottom = wrapper.scrollTop >= maxScroll - 1;
+      const goingUp  = e.deltaY < 0;
+      const goingDown = e.deltaY > 0;
 
-        wrapper.scrollTop = Math.min(
-          Math.max(wrapper.scrollTop + e.deltaY, 0),
-          maxScroll
-        );
-      });
+      // At boundary — pass through to page scroll, do NOT preventDefault
+      if ((atTop && goingUp) || (atBottom && goingDown)) return;
+
+      // Filter list needs to scroll — consume the event
+      e.preventDefault();
+      e.stopPropagation();
+
+      wrapper.scrollTop = Math.min(
+        Math.max(wrapper.scrollTop + e.deltaY, 0),
+        maxScroll
+      );
     };
 
     document.addEventListener('wheel', wheelHandler, { passive: false, capture: true });
@@ -198,6 +207,48 @@ export function functionFilterScroll() {
           setTimeout(() => setDynamicHeight(wrapper), 200);
         });
       });
+
+      // ── Meet the team: reacts to Finsweet filter changes ─────────────────
+      // On pages with a programmatic default filter (e.g. meet-the-team),
+      // Finsweet hides items via display:none after load. The filter wrapper
+      // height must recalculate when visible items change so it doesn't show
+      // phantom height for hidden content.
+      //
+      // Watch the associated CMS list for item visibility changes.
+      const form = wrapper.querySelector('form[fs-list-element="filters"]');
+      if (form) {
+        const listAttr = form.getAttribute('fs-list-target') || 'list';
+        // Find the nearest sibling or ancestor CMS list
+        const list =
+          document.querySelector(`[fs-list-element="${listAttr}"]`) ||
+          wrapper.closest('[class*="qs-section"]')?.querySelector('[fs-list-element="list"]') ||
+          document.querySelector('[fs-list-element="list"]');
+
+        if (list) {
+          // Observe display changes on list items — fired when Finsweet filters
+          const filterObserver = new MutationObserver(() => {
+            // Debounce to let Finsweet finish updating all items
+            clearTimeout(wrapper._filterObserverTimer);
+            wrapper._filterObserverTimer = setTimeout(() => {
+              setDynamicHeight(wrapper);
+            }, 150);
+          });
+
+          filterObserver.observe(list, {
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['style'],
+          });
+        }
+
+        // Also recalculate on any filter form input change
+        form.addEventListener('change', () => {
+          setTimeout(() => setDynamicHeight(wrapper), 150);
+        });
+        form.addEventListener('input', () => {
+          setTimeout(() => setDynamicHeight(wrapper), 150);
+        });
+      }
     });
 
     // ── Global recalculation ──────────────────────────────────────────────────
