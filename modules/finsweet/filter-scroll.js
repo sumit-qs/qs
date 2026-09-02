@@ -1,11 +1,34 @@
 /**
  * Filter Scroll — Desktop UX enhancement for .qs-filter-wrapper
  *
- * GSAP ScrollSmoother (normalizeScroll: true) intercepts ALL wheel events.
- * Must use document capture phase to intercept before ScrollSmoother.
- * tua-body-scroll-lock loads async — poll for it.
- * Height uses offsetHeight sum of .qs-form-wrapper children + flex gap.
- * Desktop only (>= 992px).
+ * Architecture notes:
+ *
+ * GSAP ScrollSmoother (normalizeScroll: true) intercepts ALL wheel events at
+ * the browser level. The only reliable interception point is a document-level
+ * listener at CAPTURE phase with { passive: false }.
+ *
+ * tua-body-scroll-lock loads async — poll for it and whitelist each wrapper.
+ *
+ * Height is calculated by summing .qs-form-wrapper direct children offsetHeights
+ * + flex gap. Hidden accordion groups (display:none, e.g. from hide-zero-filters.js)
+ * naturally contribute 0 and are excluded automatically.
+ *
+ * TWO-PHASE CONFIDENCE MODEL (replaces all fixed-timeout guessing):
+ *
+ *   Phase 1 "unconfident" — applied immediately on load. Height = natural
+ *   content height, NO viewport cap, NO internal scroll. This is always safe:
+ *   there is no ceiling to crop against, so nothing can ever be cut off.
+ *
+ *   Phase 2 "confident" — entered once rect.top has been verified stable
+ *   across consecutive animation frames (layout has settled), OR the wrapper
+ *   is confirmed visible during a scroll event. Only then do we trust rect.top
+ *   enough to compute a tight viewport cap and enable internal scroll.
+ *
+ * A MutationObserver watches the wrapper's own subtree (descendants only,
+ * never the wrapper itself) for class/style changes — this catches both
+ * accordion open/close AND hide-zero-filters.js hiding groups, in one place.
+ *
+ * Desktop only (>= 992px). Works across all .qs-filter-wrapper instances.
  */
 
 export function functionFilterScroll() {
@@ -15,6 +38,7 @@ export function functionFilterScroll() {
     const wrappers = document.querySelectorAll('.qs-filter-wrapper');
     if (!wrappers.length) return;
 
+    // ── Scrollbar styles ──────────────────────────────────────────────────────
     const style = document.createElement('style');
     style.textContent = `
       .qs-filter-wrapper {
@@ -42,11 +66,19 @@ export function functionFilterScroll() {
     `;
     document.head.appendChild(style);
 
+    // ── Height helpers ────────────────────────────────────────────────────────
+
     function getFlexGap(el) {
       const gap = parseFloat(getComputedStyle(el).gap || '0');
       return isNaN(gap) ? 0 : gap;
     }
 
+    /**
+     * Sum direct children of .qs-form-wrapper + flex gap.
+     * Hidden groups (display:none, from hide-zero-filters.js or a collapsed
+     * accordion) contribute offsetHeight:0 automatically — no special-casing
+     * needed, this always reflects the CURRENT visible content only.
+     */
     function getNaturalHeight(wrapper) {
       const formWrapper = wrapper.querySelector('.qs-form-wrapper');
       if (formWrapper) {
@@ -61,19 +93,11 @@ export function functionFilterScroll() {
     }
 
     /**
-     * Calculate viewportAvailable using rect.top ONLY when the wrapper
-     * is actually visible in the viewport (pinned state).
-     * When rect.top is outside [0, innerHeight], the filter is off-screen
-     * and we cannot trust it for height calculations — skip the update.
+     * Phase 1 — unconfident: height = natural content, no cap, no scroll.
+     * Always safe. Never crops. This is the state a wrapper starts in and
+     * stays in until we've verified its real viewport position.
      */
-    function setDynamicHeight(wrapper, forceUpdate = false) {
-      const rect = wrapper.getBoundingClientRect();
-      const inViewport = rect.top >= 0 && rect.top < window.innerHeight;
-
-      // Only update height when wrapper is in viewport (pinned),
-      // or when explicitly forced (e.g. accordion click, filter change).
-      if (!inViewport && !forceUpdate) return;
-
+    function applyUnconfidentHeight(wrapper) {
       wrapper.style.setProperty('overflow-y', 'hidden', 'important');
       wrapper.style.height = 'auto';
       wrapper.style.maxHeight = 'none';
@@ -81,9 +105,31 @@ export function functionFilterScroll() {
 
       const naturalHeight = getNaturalHeight(wrapper);
 
-      // Use actual rect.top when pinned, safe fallback otherwise
-      const topOffset = inViewport ? rect.top : 120;
-      const viewportAvailable = Math.max(window.innerHeight - topOffset - 40, 200);
+      wrapper.style.height = `${naturalHeight}px`;
+      wrapper.style.maxHeight = 'none';
+      void wrapper.offsetHeight;
+      wrapper.style.setProperty('overflow-y', 'auto', 'important');
+
+      if (window.bodyScrollLock?.lock) window.bodyScrollLock.lock(wrapper);
+    }
+
+    /**
+     * Phase 2 — confident: rect.top is trusted. Cap to available viewport
+     * space and enable internal scroll if content exceeds it.
+     * Floor is min(naturalHeight, 250) — never crops below a sane closed-
+     * accordion minimum, never forces more height than content actually has.
+     */
+    function applyConfidentHeight(wrapper) {
+      wrapper.style.setProperty('overflow-y', 'hidden', 'important');
+      wrapper.style.height = 'auto';
+      wrapper.style.maxHeight = 'none';
+      void wrapper.offsetHeight;
+
+      const naturalHeight = getNaturalHeight(wrapper);
+      const rect = wrapper.getBoundingClientRect();
+      const topOffset = Math.max(rect.top, 0);
+      const floor = Math.min(naturalHeight, 250);
+      const viewportAvailable = Math.max(window.innerHeight - topOffset - 40, floor);
       const targetHeight = Math.min(naturalHeight, viewportAvailable);
       const maxScroll = Math.max(naturalHeight - targetHeight, 0);
 
@@ -94,10 +140,54 @@ export function functionFilterScroll() {
       void wrapper.offsetHeight;
       wrapper.style.setProperty('overflow-y', 'auto', 'important');
 
-      if (window.bodyScrollLock?.lock) {
-        window.bodyScrollLock.lock(wrapper);
+      if (window.bodyScrollLock?.lock) window.bodyScrollLock.lock(wrapper);
+    }
+
+    function recalc(wrapper) {
+      if (wrapper._filterScrollConfident) {
+        applyConfidentHeight(wrapper);
+      } else {
+        applyUnconfidentHeight(wrapper);
       }
     }
+
+    /**
+     * Verify rect.top has settled (layout stable across 3 consecutive
+     * animation frames) rather than trusting a fixed timeout. Replaces
+     * all previous magic-number delays.
+     */
+    function waitForStableRect(wrapper, onStable, maxFrames = 60) {
+      let lastTop = null;
+      let stableCount = 0;
+      let frame = 0;
+
+      function check() {
+        if (wrapper._filterScrollConfident) return; // already confirmed via scroll
+        frame++;
+        const top = wrapper.getBoundingClientRect().top;
+        if (lastTop !== null && Math.abs(top - lastTop) < 0.5) {
+          stableCount++;
+        } else {
+          stableCount = 0;
+        }
+        lastTop = top;
+
+        if (stableCount >= 3 || frame >= maxFrames) {
+          onStable();
+          return;
+        }
+        requestAnimationFrame(check);
+      }
+      requestAnimationFrame(check);
+    }
+
+    function confirmConfident(wrapper) {
+      if (wrapper._filterScrollConfident) return;
+      wrapper._filterScrollConfident = true;
+      applyConfidentHeight(wrapper);
+    }
+
+    // ── BSL polling ───────────────────────────────────────────────────────────
 
     function waitForBSL(wrapper, attempts = 0) {
       if (window.bodyScrollLock?.lock) {
@@ -108,7 +198,9 @@ export function functionFilterScroll() {
       setTimeout(() => waitForBSL(wrapper, attempts + 1), 100);
     }
 
-    // ── Wheel handler ─────────────────────────────────────────────────────────
+    // ── Document-level capture wheel handler ──────────────────────────────────
+    // Pointer being over the wrapper while wheeling guarantees it's on-screen,
+    // so rect.top here is always trustworthy — no fallback needed.
 
     const wheelHandler = (e) => {
       let activeWrapper = null;
@@ -124,11 +216,14 @@ export function functionFilterScroll() {
       }
       if (!activeWrapper) return;
 
+      // Being scrolled over confirms visibility — upgrade confidence
+      confirmConfident(activeWrapper);
+
       const wrapper = activeWrapper;
-      const rect = wrapper.getBoundingClientRect();
       const naturalHeight = getNaturalHeight(wrapper);
-      const topOffset = (rect.top >= 0 && rect.top < window.innerHeight) ? rect.top : 120;
-      const viewportAvailable = Math.max(window.innerHeight - topOffset - 40, 200);
+      const rect = wrapper.getBoundingClientRect();
+      const floor = Math.min(naturalHeight, 250);
+      const viewportAvailable = Math.max(window.innerHeight - rect.top - 40, floor);
       const targetHeight = Math.min(naturalHeight, viewportAvailable);
       const maxScroll = Math.max(naturalHeight - targetHeight, 0);
 
@@ -155,82 +250,73 @@ export function functionFilterScroll() {
     // ── Per-wrapper setup ─────────────────────────────────────────────────────
 
     wrappers.forEach(wrapper => {
+      wrapper._filterScrollConfident = false;
+
       waitForBSL(wrapper);
 
-      // Initial height — forced since wrapper may not be in viewport yet.
-      // Uses fallback topOffset (120) until scroll positions it correctly.
-      setTimeout(() => setDynamicHeight(wrapper, true), 300);
+      // Phase 1 immediately — always safe, never crops
+      applyUnconfidentHeight(wrapper);
 
-      // Accordion clicks — force update regardless of viewport position
+      // Upgrade to Phase 2 once layout genuinely settles
+      waitForStableRect(wrapper, () => confirmConfident(wrapper));
+
+      // Accordion click — recalc at current confidence level
       const heads = wrapper.querySelectorAll(
         '.qs-accordion-head-filters, .qs-accordion-button-expertise'
       );
       heads.forEach(head => {
         head.addEventListener('click', () => {
-          setTimeout(() => setDynamicHeight(wrapper, true), 200);
+          setTimeout(() => recalc(wrapper), 200);
         });
       });
 
-      // Filter form changes (e.g. meet-the-team default selection hides items)
+      // Filter form changes
       const form = wrapper.querySelector('form[fs-list-element="filters"]');
       if (form) {
-        form.addEventListener('change', () => {
-          setTimeout(() => setDynamicHeight(wrapper, true), 200);
-        });
-        form.addEventListener('input', () => {
-          setTimeout(() => setDynamicHeight(wrapper, true), 200);
-        });
-
-        // Watch CMS list for Finsweet show/hide changes (display:none on items)
-        const list = document.querySelector('[fs-list-element="list"]');
-        if (list) {
-          const filterObserver = new MutationObserver(() => {
-            clearTimeout(wrapper._filterObserverTimer);
-            wrapper._filterObserverTimer = setTimeout(() => {
-              setDynamicHeight(wrapper, true);
-            }, 150);
-          });
-          filterObserver.observe(list, {
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['style'],
-          });
-        }
+        form.addEventListener('change', () => setTimeout(() => recalc(wrapper), 150));
+        form.addEventListener('input',  () => setTimeout(() => recalc(wrapper), 150));
       }
+
+      // Watch the wrapper's OWN subtree for class/style changes on
+      // descendants — catches accordion open/close AND hide-zero-filters.js
+      // hiding groups (adds "hide-filter" class + display:none), both of
+      // which change what getNaturalHeight() should sum.
+      // Ignore mutations on the wrapper itself — those are our own writes.
+      const selfObserver = new MutationObserver((mutations) => {
+        const relevant = mutations.some(m => m.target !== wrapper);
+        if (!relevant) return;
+        clearTimeout(wrapper._filterScrollMutationTimer);
+        wrapper._filterScrollMutationTimer = setTimeout(() => recalc(wrapper), 150);
+      });
+      selfObserver.observe(wrapper, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style'],
+      });
     });
 
-    // ── Scroll listener: recalculate while filter scrolls into position ───────
-    // Runs on every scroll until all wrappers have been updated while in-viewport.
-    // This handles the case where setDynamicHeight(force) at init uses the
-    // fallback topOffset (120) because the wrapper isn't pinned yet.
-    // Once the user scrolls the filter into view, we get the real rect.top.
+    // ── Scroll-based confidence upgrade ───────────────────────────────────────
+    // For wrappers not yet confident (e.g. starting off-screen), confirm once
+    // they scroll into view. Self-removing once all wrappers are confident.
 
-    const updatedWrappers = new WeakSet();
-
-    const scrollHandler = () => {
-      let allUpdated = true;
+    const scrollConfirm = () => {
+      let allConfident = true;
       wrappers.forEach(wrapper => {
-        if (updatedWrappers.has(wrapper)) return;
+        if (wrapper._filterScrollConfident) return;
         const rect = wrapper.getBoundingClientRect();
-        const inViewport = rect.top >= 0 && rect.top < window.innerHeight;
-        if (inViewport) {
-          setDynamicHeight(wrapper, true);
-          updatedWrappers.add(wrapper);
+        if (rect.top >= 0 && rect.top < window.innerHeight) {
+          confirmConfident(wrapper);
         } else {
-          allUpdated = false;
+          allConfident = false;
         }
       });
-      // Remove listener once all wrappers have been updated in-viewport
-      if (allUpdated) {
-        window.removeEventListener('scroll', scrollHandler);
-      }
+      if (allConfident) window.removeEventListener('scroll', scrollConfirm);
     };
-
-    window.addEventListener('scroll', scrollHandler, { passive: true });
+    window.addEventListener('scroll', scrollConfirm, { passive: true });
 
     window.addEventListener('resize', () => {
       if (window.innerWidth < 992) return;
-      wrappers.forEach(w => setDynamicHeight(w, true));
+      wrappers.forEach(recalc);
     });
   }
 
