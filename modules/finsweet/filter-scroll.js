@@ -20,6 +20,17 @@
  * hide-zero-filters.js hiding groups asynchronously after Finsweet's list
  * settles, so the wrapper always recalculates against current visible content.
  *
+ * SCROLLTRIGGER REFRESH ON FILTER CHANGE:
+ * The filter sidebar is pinned via GSAP ScrollTrigger (sticky-filters.js),
+ * which wraps it in a pin-spacer whose height is calculated ONCE, based on
+ * the sibling content column's height at that moment — so the pin lasts as
+ * long as the content scrolls past. When Finsweet filters the CMS list down
+ * to fewer items, the content column shrinks, but ScrollTrigger never
+ * recalculates on its own — the pin-spacer keeps its original height,
+ * leaving stale blank space below the filtered results. We watch the CMS
+ * results list for changes and call ScrollTrigger.refresh() once it settles,
+ * which is GSAP's documented mechanism for this exact scenario.
+ *
  * NOTE: tua-body-scroll-lock is intentionally NOT used here. Scrolling is
  * fully handled by the wheel handler below via direct wrapper.scrollTop
  * writes — bodyScrollLock.lock() is unnecessary for that, and calling it
@@ -29,6 +40,8 @@
  * Desktop only (>= 992px).
  * Works across all .qs-filter-wrapper instances on the page.
  */
+
+import { ScrollTrigger } from "gsap/all";
 
 export function functionFilterScroll() {
   if (window.innerWidth < 992) return;
@@ -196,8 +209,7 @@ export function functionFilterScroll() {
       //   - accordion groups opening/closing
       //   - hide-zero-filters.js adding a "hide-filter" class + display:none
       //     to groups with zero results, asynchronously after Finsweet's
-      //     list settles — the root cause of the "meet the team" height
-      //     including groups that get hidden a moment later.
+      //     list settles.
       const selfObserver = new MutationObserver((mutations) => {
         const relevant = mutations.some(m => m.target !== wrapper);
         if (!relevant) return;
@@ -211,6 +223,33 @@ export function functionFilterScroll() {
         attributes: true,
         attributeFilter: ['class', 'style'],
       });
+
+      // ── ScrollTrigger refresh on CMS results change ─────────────────────
+      // The pinned filter sidebar's pin-spacer height is calculated once
+      // by ScrollTrigger based on the sibling content column's height at
+      // that time. When Finsweet filters the results list to fewer items,
+      // the content column shrinks but the pin-spacer does not resize on
+      // its own — leaving stale blank space. Watching the results list and
+      // calling ScrollTrigger.refresh() once it settles is GSAP's documented
+      // fix for dynamic content height changes affecting pinned elements.
+      const resultsList =
+        wrapper.closest('[class*="qs-section"]')?.querySelector('[fs-list-element="list"]') ||
+        document.querySelector('[fs-list-element="list"]');
+
+      if (resultsList) {
+        const listObserver = new MutationObserver(() => {
+          clearTimeout(wrapper._filterScrollRefreshTimer);
+          wrapper._filterScrollRefreshTimer = setTimeout(() => {
+            ScrollTrigger.refresh();
+          }, 250);
+        });
+        listObserver.observe(resultsList, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['style'],
+        });
+      }
     });
 
     // ── Global recalculation ──────────────────────────────────────────────────
