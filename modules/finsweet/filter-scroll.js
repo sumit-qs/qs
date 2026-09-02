@@ -4,31 +4,30 @@
  * Architecture notes:
  *
  * GSAP ScrollSmoother (normalizeScroll: true) intercepts ALL wheel events at
- * the browser level. The only reliable interception point is a document-level
- * listener at CAPTURE phase with { passive: false }.
- *
- * tua-body-scroll-lock loads async — poll for it and whitelist each wrapper.
+ * the browser level and routes them to its smooth scroll system. Element-level
+ * wheel listeners never fire. The only reliable interception point is a
+ * document-level listener at CAPTURE phase with { passive: false }.
  *
  * Height is calculated by summing .qs-form-wrapper direct children offsetHeights
- * + flex gap. Hidden accordion groups (display:none, e.g. from hide-zero-filters.js)
- * naturally contribute 0 and are excluded automatically.
+ * + flex gap — avoids stale scrollHeight caused by Webflow accordion collapsed
+ * content retaining overflow in the browser scroll model. Hidden accordion
+ * groups (display:none, e.g. from hide-zero-filters.js) contribute 0 and are
+ * excluded automatically — no special-casing needed.
  *
- * TWO-PHASE CONFIDENCE MODEL (replaces all fixed-timeout guessing):
+ * A MutationObserver watches each wrapper's own subtree (descendants only,
+ * never the wrapper itself — that would just be reacting to our own writes)
+ * for class/style changes. This catches accordion open/close AND
+ * hide-zero-filters.js hiding groups asynchronously after Finsweet's list
+ * settles, so the wrapper always recalculates against current visible content.
  *
- *   Phase 1 "unconfident" — applied immediately on load. Height = natural
- *   content height, NO viewport cap, NO internal scroll. This is always safe:
- *   there is no ceiling to crop against, so nothing can ever be cut off.
+ * NOTE: tua-body-scroll-lock is intentionally NOT used here. Scrolling is
+ * fully handled by the wheel handler below via direct wrapper.scrollTop
+ * writes — bodyScrollLock.lock() is unnecessary for that, and calling it
+ * repeatedly sets overflow:hidden on <body>/<html>, which suppresses the
+ * page's native scrollbar site-wide on every page using this filter.
  *
- *   Phase 2 "confident" — entered once rect.top has been verified stable
- *   across consecutive animation frames (layout has settled), OR the wrapper
- *   is confirmed visible during a scroll event. Only then do we trust rect.top
- *   enough to compute a tight viewport cap and enable internal scroll.
- *
- * A MutationObserver watches the wrapper's own subtree (descendants only,
- * never the wrapper itself) for class/style changes — this catches both
- * accordion open/close AND hide-zero-filters.js hiding groups, in one place.
- *
- * Desktop only (>= 992px). Works across all .qs-filter-wrapper instances.
+ * Desktop only (>= 992px).
+ * Works across all .qs-filter-wrapper instances on the page.
  */
 
 export function functionFilterScroll() {
@@ -75,9 +74,9 @@ export function functionFilterScroll() {
 
     /**
      * Sum direct children of .qs-form-wrapper + flex gap.
-     * Hidden groups (display:none, from hide-zero-filters.js or a collapsed
-     * accordion) contribute offsetHeight:0 automatically — no special-casing
-     * needed, this always reflects the CURRENT visible content only.
+     * Uses offsetHeight (visible rendered height) — NOT scrollHeight, which
+     * includes hidden accordion overflow and caches stale expanded values.
+     * A hidden group (display:none) contributes 0 automatically.
      */
     function getNaturalHeight(wrapper) {
       const formWrapper = wrapper.querySelector('.qs-form-wrapper');
@@ -92,157 +91,84 @@ export function functionFilterScroll() {
       return inner ? inner.offsetHeight : wrapper.offsetHeight;
     }
 
-    /**
-     * Phase 1 — unconfident: height = natural content, no cap, no scroll.
-     * Always safe. Never crops. This is the state a wrapper starts in and
-     * stays in until we've verified its real viewport position.
-     */
-    function applyUnconfidentHeight(wrapper) {
+    function setDynamicHeight(wrapper) {
+      // Temporarily disable overflow so layout can reflow freely.
+      // Must use setProperty('important') because our injected CSS uses !important.
       wrapper.style.setProperty('overflow-y', 'hidden', 'important');
       wrapper.style.height = 'auto';
       wrapper.style.maxHeight = 'none';
-      void wrapper.offsetHeight;
 
-      const naturalHeight = getNaturalHeight(wrapper);
-
-      wrapper.style.height = `${naturalHeight}px`;
-      wrapper.style.maxHeight = 'none';
-      void wrapper.offsetHeight;
-      wrapper.style.setProperty('overflow-y', 'auto', 'important');
-
-      if (window.bodyScrollLock?.lock) window.bodyScrollLock.lock(wrapper);
-    }
-
-    /**
-     * Phase 2 — confident: rect.top is trusted. Cap to available viewport
-     * space and enable internal scroll if content exceeds it.
-     * Floor is min(naturalHeight, 250) — never crops below a sane closed-
-     * accordion minimum, never forces more height than content actually has.
-     */
-    function applyConfidentHeight(wrapper) {
-      wrapper.style.setProperty('overflow-y', 'hidden', 'important');
-      wrapper.style.height = 'auto';
-      wrapper.style.maxHeight = 'none';
+      // Force layout flush before measuring
       void wrapper.offsetHeight;
 
       const naturalHeight = getNaturalHeight(wrapper);
       const rect = wrapper.getBoundingClientRect();
-      const topOffset = Math.max(rect.top, 0);
-      const floor = Math.min(naturalHeight, 250);
-      const viewportAvailable = Math.max(window.innerHeight - topOffset - 40, floor);
+
+      // Use rect.top when it reflects a settled pinned position.
+      // Fall back to 120px safety offset if rect.top is unreliable (pre-pin).
+      const topOffset = (rect.top > 0 && rect.top < window.innerHeight)
+        ? rect.top
+        : 120;
+      const viewportAvailable = Math.max(window.innerHeight - topOffset - 40, 200);
       const targetHeight = Math.min(naturalHeight, viewportAvailable);
       const maxScroll = Math.max(naturalHeight - targetHeight, 0);
 
+      // Clamp scroll position before restoring overflow
       if (wrapper.scrollTop > maxScroll) wrapper.scrollTop = maxScroll;
 
       wrapper.style.height = `${targetHeight}px`;
       wrapper.style.maxHeight = `${targetHeight}px`;
+
+      // Force second layout flush before restoring scroll
       void wrapper.offsetHeight;
       wrapper.style.setProperty('overflow-y', 'auto', 'important');
-
-      if (window.bodyScrollLock?.lock) window.bodyScrollLock.lock(wrapper);
-    }
-
-    function recalc(wrapper) {
-      if (wrapper._filterScrollConfident) {
-        applyConfidentHeight(wrapper);
-      } else {
-        applyUnconfidentHeight(wrapper);
-      }
-    }
-
-    /**
-     * Verify rect.top has settled (layout stable across 3 consecutive
-     * animation frames) rather than trusting a fixed timeout. Replaces
-     * all previous magic-number delays.
-     */
-    function waitForStableRect(wrapper, onStable, maxFrames = 60) {
-      let lastTop = null;
-      let stableCount = 0;
-      let frame = 0;
-
-      function check() {
-        if (wrapper._filterScrollConfident) return; // already confirmed via scroll
-        frame++;
-        const top = wrapper.getBoundingClientRect().top;
-        if (lastTop !== null && Math.abs(top - lastTop) < 0.5) {
-          stableCount++;
-        } else {
-          stableCount = 0;
-        }
-        lastTop = top;
-
-        if (stableCount >= 3 || frame >= maxFrames) {
-          onStable();
-          return;
-        }
-        requestAnimationFrame(check);
-      }
-      requestAnimationFrame(check);
-    }
-
-    function confirmConfident(wrapper) {
-      if (wrapper._filterScrollConfident) return;
-      wrapper._filterScrollConfident = true;
-      applyConfidentHeight(wrapper);
-    }
-
-    // ── BSL polling ───────────────────────────────────────────────────────────
-
-    function waitForBSL(wrapper, attempts = 0) {
-      if (window.bodyScrollLock?.lock) {
-        window.bodyScrollLock.lock(wrapper);
-        return;
-      }
-      if (attempts > 30) return;
-      setTimeout(() => waitForBSL(wrapper, attempts + 1), 100);
     }
 
     // ── Document-level capture wheel handler ──────────────────────────────────
-    // Pointer being over the wrapper while wheeling guarantees it's on-screen,
-    // so rect.top here is always trustworthy — no fallback needed.
+    // MUST be on document at capture phase.
+    // ScrollSmoother (normalizeScroll:true) intercepts wheel events before they
+    // reach element-level listeners. Capture phase fires before ScrollSmoother
+    // processes the event, allowing us to preventDefault and handle it ourselves.
 
     const wheelHandler = (e) => {
-      let activeWrapper = null;
-      for (const wrapper of wrappers) {
+      wrappers.forEach(wrapper => {
         const rect = wrapper.getBoundingClientRect();
-        if (
+
+        // Check if pointer is over this wrapper
+        const over =
           e.clientX >= rect.left && e.clientX <= rect.right &&
-          e.clientY >= rect.top  && e.clientY <= rect.bottom
-        ) {
-          activeWrapper = wrapper;
-          break;
-        }
-      }
-      if (!activeWrapper) return;
+          e.clientY >= rect.top  && e.clientY <= rect.bottom;
+        if (!over) return;
 
-      // Being scrolled over confirms visibility — upgrade confidence
-      confirmConfident(activeWrapper);
+        // Calculate real scroll boundary from current DOM state
+        const naturalHeight = getNaturalHeight(wrapper);
+        const topOffset = (rect.top > 0 && rect.top < window.innerHeight)
+          ? rect.top
+          : 120;
+        const viewportAvailable = Math.max(window.innerHeight - topOffset - 40, 200);
+        const targetHeight = Math.min(naturalHeight, viewportAvailable);
+        const maxScroll = Math.max(naturalHeight - targetHeight, 0);
 
-      const wrapper = activeWrapper;
-      const naturalHeight = getNaturalHeight(wrapper);
-      const rect = wrapper.getBoundingClientRect();
-      const floor = Math.min(naturalHeight, 250);
-      const viewportAvailable = Math.max(window.innerHeight - rect.top - 40, floor);
-      const targetHeight = Math.min(naturalHeight, viewportAvailable);
-      const maxScroll = Math.max(naturalHeight - targetHeight, 0);
+        // No overflow → let page scroll
+        if (maxScroll <= 0) return;
 
-      if (maxScroll <= 0) return;
+        const atTop    = wrapper.scrollTop <= 0;
+        const atBottom = wrapper.scrollTop >= maxScroll - 1;
+        const goingUp  = e.deltaY < 0;
+        const goingDown = e.deltaY > 0;
 
-      const atTop    = wrapper.scrollTop <= 0;
-      const atBottom = wrapper.scrollTop >= maxScroll - 1;
-      const goingUp  = e.deltaY < 0;
-      const goingDown = e.deltaY > 0;
+        // At boundary → hand back to page scroll
+        if ((atTop && goingUp) || (atBottom && goingDown)) return;
 
-      if ((atTop && goingUp) || (atBottom && goingDown)) return;
+        // Consume event and scroll filter wrapper
+        e.preventDefault();
+        e.stopPropagation();
 
-      e.preventDefault();
-      e.stopPropagation();
-
-      wrapper.scrollTop = Math.min(
-        Math.max(wrapper.scrollTop + e.deltaY, 0),
-        maxScroll
-      );
+        wrapper.scrollTop = Math.min(
+          Math.max(wrapper.scrollTop + e.deltaY, 0),
+          maxScroll
+        );
+      });
     };
 
     document.addEventListener('wheel', wheelHandler, { passive: false, capture: true });
@@ -250,43 +176,35 @@ export function functionFilterScroll() {
     // ── Per-wrapper setup ─────────────────────────────────────────────────────
 
     wrappers.forEach(wrapper => {
-      wrapper._filterScrollConfident = false;
+      // Init height after layout settles (GSAP pin needs time to activate)
+      setTimeout(() => setDynamicHeight(wrapper), 300);
 
-      waitForBSL(wrapper);
-
-      // Phase 1 immediately — always safe, never crops
-      applyUnconfidentHeight(wrapper);
-
-      // Upgrade to Phase 2 once layout genuinely settles
-      waitForStableRect(wrapper, () => confirmConfident(wrapper));
-
-      // Accordion click — recalc at current confidence level
+      // Accordion click — Finsweet JS expands accordion asynchronously.
+      // 200ms is sufficient for DOM to settle after a 0s CSS transition.
       const heads = wrapper.querySelectorAll(
         '.qs-accordion-head-filters, .qs-accordion-button-expertise'
       );
       heads.forEach(head => {
         head.addEventListener('click', () => {
-          setTimeout(() => recalc(wrapper), 200);
+          setTimeout(() => setDynamicHeight(wrapper), 200);
         });
       });
 
-      // Filter form changes
-      const form = wrapper.querySelector('form[fs-list-element="filters"]');
-      if (form) {
-        form.addEventListener('change', () => setTimeout(() => recalc(wrapper), 150));
-        form.addEventListener('input',  () => setTimeout(() => recalc(wrapper), 150));
-      }
-
-      // Watch the wrapper's OWN subtree for class/style changes on
-      // descendants — catches accordion open/close AND hide-zero-filters.js
-      // hiding groups (adds "hide-filter" class + display:none), both of
-      // which change what getNaturalHeight() should sum.
-      // Ignore mutations on the wrapper itself — those are our own writes.
+      // Watch this wrapper's own subtree for class/style changes on
+      // DESCENDANTS (never the wrapper itself — that would just react to
+      // our own setDynamicHeight writes). This catches:
+      //   - accordion groups opening/closing
+      //   - hide-zero-filters.js adding a "hide-filter" class + display:none
+      //     to groups with zero results, asynchronously after Finsweet's
+      //     list settles — the root cause of the "meet the team" height
+      //     including groups that get hidden a moment later.
       const selfObserver = new MutationObserver((mutations) => {
         const relevant = mutations.some(m => m.target !== wrapper);
         if (!relevant) return;
         clearTimeout(wrapper._filterScrollMutationTimer);
-        wrapper._filterScrollMutationTimer = setTimeout(() => recalc(wrapper), 150);
+        wrapper._filterScrollMutationTimer = setTimeout(() => {
+          setDynamicHeight(wrapper);
+        }, 150);
       });
       selfObserver.observe(wrapper, {
         subtree: true,
@@ -295,28 +213,20 @@ export function functionFilterScroll() {
       });
     });
 
-    // ── Scroll-based confidence upgrade ───────────────────────────────────────
-    // For wrappers not yet confident (e.g. starting off-screen), confirm once
-    // they scroll into view. Self-removing once all wrappers are confident.
+    // ── Global recalculation ──────────────────────────────────────────────────
 
-    const scrollConfirm = () => {
-      let allConfident = true;
-      wrappers.forEach(wrapper => {
-        if (wrapper._filterScrollConfident) return;
-        const rect = wrapper.getBoundingClientRect();
-        if (rect.top >= 0 && rect.top < window.innerHeight) {
-          confirmConfident(wrapper);
-        } else {
-          allConfident = false;
-        }
-      });
-      if (allConfident) window.removeEventListener('scroll', scrollConfirm);
-    };
-    window.addEventListener('scroll', scrollConfirm, { passive: true });
+    // Recalculate once on first scroll — GSAP pin fully active by then,
+    // so rect.top gives the true pinned position for viewportAvailable
+    let recalcDone = false;
+    window.addEventListener('scroll', () => {
+      if (recalcDone) return;
+      recalcDone = true;
+      wrappers.forEach(setDynamicHeight);
+    }, { passive: true });
 
     window.addEventListener('resize', () => {
       if (window.innerWidth < 992) return;
-      wrappers.forEach(recalc);
+      wrappers.forEach(setDynamicHeight);
     });
   }
 
