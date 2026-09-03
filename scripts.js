@@ -69,8 +69,7 @@ import { functionDragScroll } from './modules/drag/dragscroll.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Filter Scroll V1.18] ##"); // ADD THIS LINE
-  console.log("## Dragscroll for QSIM V1.0 ##"); // ADD THIS LINE
+  console.log("## [Filter Scroll | Through sticky filters file] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
