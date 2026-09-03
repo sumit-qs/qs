@@ -1,56 +1,20 @@
 /**
  * Filter Scroll — Desktop UX enhancement for .qs-filter-wrapper
  *
- * Architecture notes:
- *
- * GSAP ScrollSmoother (normalizeScroll: true) intercepts ALL wheel events at
- * the browser level and routes them to its smooth scroll system. Element-level
- * wheel listeners never fire. The only reliable interception point is a
- * document-level listener at CAPTURE phase with { passive: false }.
- *
- * Height is calculated by summing .qs-form-wrapper direct children offsetHeights
- * + flex gap — avoids stale scrollHeight caused by Webflow accordion collapsed
- * content retaining overflow in the browser scroll model. Hidden accordion
- * groups (display:none, e.g. from hide-zero-filters.js) contribute 0 and are
- * excluded automatically.
- *
- * SCROLLTRIGGER REFRESH ON FILTER CHANGE:
- * The filter sidebar is pinned via GSAP ScrollTrigger (sticky-filters.js).
- * When Finsweet filters results, the content column shrinks but ScrollTrigger's
- * pin-spacer keeps its original height, leaving blank space below filtered results.
- *
- * ScrollTrigger.refresh() fixes this — but ScrollTrigger and ScrollSmoother are
- * fully encapsulated inside the ES module bundle and not accessible from window.
- * Both are passed in as parameters from scripts.js where they ARE in scope.
- *
- * The refresh runs after `transitionend` on the CMS list — the event fired by
- * filters.js GSAP card animations (opacity + transform, 0.36s) which is the
- * exact moment layout has fully settled after a filter change.
- *
- * smoother.refresh() is tried first (ScrollSmoother wraps ScrollTrigger and
- * requires its own refresh when active). ScrollTrigger.refresh(true) is the
- * fallback. window.dispatchEvent(new Event('resize')) is the final fallback —
- * this is exactly what Cmd+Shift+C in devtools triggers, which was confirmed
- * to fix the blank space in every case.
- *
- * NOTE: tua-body-scroll-lock is intentionally NOT used. Scrolling is handled
- * by the wheel handler via direct wrapper.scrollTop writes. bodyScrollLock.lock()
- * sets overflow:hidden on <body>/<html>, suppressing the page scrollbar site-wide.
- *
- * @param {object} ScrollTrigger — passed in from scripts.js after registerPlugin
- * @param {object} smoother — ScrollSmoother instance from scripts.js
- *
- * Desktop only (>= 992px). Works across all .qs-filter-wrapper instances.
+ * GSAP ScrollSmoother (normalizeScroll: true) intercepts ALL wheel events.
+ * Must use document capture phase. tua-body-scroll-lock NOT used.
+ * Height uses offsetHeight sum of .qs-form-wrapper children + flex gap.
+ * MutationObserver catches accordion + hide-zero-filters.js mutations.
+ * Desktop only (>= 992px).
  */
 
-export function functionFilterScroll(ScrollTrigger, smoother) {
+export function functionFilterScroll() {
   if (window.innerWidth < 992) return;
 
   function initFilterScroll() {
     const wrappers = document.querySelectorAll('.qs-filter-wrapper');
     if (!wrappers.length) return;
 
-    // ── Scrollbar styles ──────────────────────────────────────────────────────
     const style = document.createElement('style');
     style.textContent = `
       .qs-filter-wrapper {
@@ -77,8 +41,6 @@ export function functionFilterScroll(ScrollTrigger, smoother) {
       }
     `;
     document.head.appendChild(style);
-
-    // ── Height helpers ────────────────────────────────────────────────────────
 
     function getFlexGap(el) {
       const gap = parseFloat(getComputedStyle(el).gap || '0');
@@ -121,8 +83,6 @@ export function functionFilterScroll(ScrollTrigger, smoother) {
       wrapper.style.setProperty('overflow-y', 'auto', 'important');
     }
 
-    // ── Document-level capture wheel handler ──────────────────────────────────
-
     const wheelHandler = (e) => {
       wrappers.forEach(wrapper => {
         const rect = wrapper.getBoundingClientRect();
@@ -160,8 +120,6 @@ export function functionFilterScroll(ScrollTrigger, smoother) {
 
     document.addEventListener('wheel', wheelHandler, { passive: false, capture: true });
 
-    // ── Per-wrapper setup ─────────────────────────────────────────────────────
-
     wrappers.forEach(wrapper => {
       setTimeout(() => setDynamicHeight(wrapper), 300);
 
@@ -174,8 +132,6 @@ export function functionFilterScroll(ScrollTrigger, smoother) {
         });
       });
 
-      // Watch wrapper subtree for class/style changes on descendants.
-      // Catches accordion open/close and hide-zero-filters.js mutations.
       const selfObserver = new MutationObserver((mutations) => {
         const relevant = mutations.some(m => m.target !== wrapper);
         if (!relevant) return;
@@ -190,38 +146,6 @@ export function functionFilterScroll(ScrollTrigger, smoother) {
         attributeFilter: ['class', 'style'],
       });
     });
-
-    // ── ScrollTrigger/ScrollSmoother refresh after filter change ──────────────
-    // filters.js animates filtered cards via GSAP (opacity + transform, 0.36s).
-    // transitionend on the list fires once per card when animation completes.
-    // Debounced so refresh runs once after ALL cards have transitioned —
-    // at that point layout is fully settled and the pin-spacer can be
-    // recalculated to match the new shorter content column height.
-    //
-    // smoother.refresh() is tried first — ScrollSmoother wraps ScrollTrigger
-    // and needs its own refresh when active.
-    // ScrollTrigger.refresh(true) is the fallback.
-    // window dispatchEvent('resize') is the final fallback — confirmed to
-    // fix the blank space in every case (equivalent to Cmd+Shift+C in devtools).
-
-    const resultsList = document.querySelector('[fs-list-element="list"]');
-    if (resultsList) {
-      let refreshTimer = null;
-      resultsList.addEventListener('transitionend', (e) => {
-        if (e.propertyName !== 'opacity' && e.propertyName !== 'transform') return;
-        clearTimeout(refreshTimer);
-        refreshTimer = setTimeout(() => {
-          if (smoother?.refresh) {
-            smoother.refresh();
-          } else if (ScrollTrigger?.refresh) {
-            ScrollTrigger.refresh(true);
-          }
-          window.dispatchEvent(new Event('resize'));
-        }, 50);
-      });
-    }
-
-    // ── Global recalculation ──────────────────────────────────────────────────
 
     let recalcDone = false;
     window.addEventListener('scroll', () => {
