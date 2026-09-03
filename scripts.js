@@ -65,7 +65,6 @@ import { initCountdownFooterOffset } from './modules/countdown/footer-offset.js'
 import { functionCaseStudyBento } from "./modules/interactive/case-study-bento.js";
 import { initHubspotPopup } from './modules/hubspot/hubspot-popup.js';
 import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
-import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
 import { functionDragScroll } from './modules/drag/dragscroll.js';
 
 
