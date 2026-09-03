@@ -19,24 +19,31 @@
  * When Finsweet filters results, the content column shrinks but ScrollTrigger's
  * pin-spacer keeps its original height, leaving blank space below filtered results.
  *
- * ScrollTrigger.refresh() fixes this — but ScrollTrigger is fully encapsulated
- * inside the ES module bundle and not accessible from window. It is passed in
- * as a parameter from scripts.js where it IS in scope after registerPlugin().
+ * ScrollTrigger.refresh() fixes this — but ScrollTrigger and ScrollSmoother are
+ * fully encapsulated inside the ES module bundle and not accessible from window.
+ * Both are passed in as parameters from scripts.js where they ARE in scope.
  *
  * The refresh runs after `transitionend` on the CMS list — the event fired by
  * filters.js GSAP card animations (opacity + transform, 0.36s) which is the
  * exact moment layout has fully settled after a filter change.
+ *
+ * smoother.refresh() is tried first (ScrollSmoother wraps ScrollTrigger and
+ * requires its own refresh when active). ScrollTrigger.refresh(true) is the
+ * fallback. window.dispatchEvent(new Event('resize')) is the final fallback —
+ * this is exactly what Cmd+Shift+C in devtools triggers, which was confirmed
+ * to fix the blank space in every case.
  *
  * NOTE: tua-body-scroll-lock is intentionally NOT used. Scrolling is handled
  * by the wheel handler via direct wrapper.scrollTop writes. bodyScrollLock.lock()
  * sets overflow:hidden on <body>/<html>, suppressing the page scrollbar site-wide.
  *
  * @param {object} ScrollTrigger — passed in from scripts.js after registerPlugin
+ * @param {object} smoother — ScrollSmoother instance from scripts.js
  *
  * Desktop only (>= 992px). Works across all .qs-filter-wrapper instances.
  */
 
-export function functionFilterScroll(ScrollTrigger) {
+export function functionFilterScroll(ScrollTrigger, smoother) {
   if (window.innerWidth < 992) return;
 
   function initFilterScroll() {
@@ -184,21 +191,32 @@ export function functionFilterScroll(ScrollTrigger) {
       });
     });
 
-    // ── ScrollTrigger refresh via transitionend ───────────────────────────────
+    // ── ScrollTrigger/ScrollSmoother refresh after filter change ──────────────
     // filters.js animates filtered cards via GSAP (opacity + transform, 0.36s).
     // transitionend on the list fires once per card when animation completes.
-    // We debounce so refresh() runs once after ALL cards have transitioned —
-    // at that point layout is fully settled and ScrollTrigger measures correctly,
-    // collapsing the blank space left by the stale pin-spacer height.
+    // Debounced so refresh runs once after ALL cards have transitioned —
+    // at that point layout is fully settled and the pin-spacer can be
+    // recalculated to match the new shorter content column height.
+    //
+    // smoother.refresh() is tried first — ScrollSmoother wraps ScrollTrigger
+    // and needs its own refresh when active.
+    // ScrollTrigger.refresh(true) is the fallback.
+    // window dispatchEvent('resize') is the final fallback — confirmed to
+    // fix the blank space in every case (equivalent to Cmd+Shift+C in devtools).
 
     const resultsList = document.querySelector('[fs-list-element="list"]');
-    if (resultsList && ScrollTrigger) {
+    if (resultsList) {
       let refreshTimer = null;
       resultsList.addEventListener('transitionend', (e) => {
         if (e.propertyName !== 'opacity' && e.propertyName !== 'transform') return;
         clearTimeout(refreshTimer);
         refreshTimer = setTimeout(() => {
-          ScrollTrigger.refresh();
+          if (smoother?.refresh) {
+            smoother.refresh();
+          } else if (ScrollTrigger?.refresh) {
+            ScrollTrigger.refresh(true);
+          }
+          window.dispatchEvent(new Event('resize'));
         }, 50);
       });
     }
