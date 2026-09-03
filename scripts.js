@@ -66,7 +66,7 @@ import { functionCaseStudyBento } from "./modules/interactive/case-study-bento.j
 import { initHubspotPopup } from './modules/hubspot/hubspot-popup.js';
 import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
 import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
-import { functionDragScroll } from './modules/drag/dragscroll.js'
+import { functionDragScroll } from './modules/drag/dragscroll.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
