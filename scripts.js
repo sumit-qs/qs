@@ -65,10 +65,13 @@ import { initCountdownFooterOffset } from './modules/countdown/footer-offset.js'
 import { functionCaseStudyBento } from "./modules/interactive/case-study-bento.js";
 import { initHubspotPopup } from './modules/hubspot/hubspot-popup.js';
 import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
+import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
+import { functionDragScroll } from './modules/drag/dragscroll.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Filter Scroll V1.15.1] ##"); // ADD THIS LINE
+  //console.log("## [Filter Scroll V1.15.1] ##"); // ADD THIS LINE
+  console.log("## Dragscroll for QSIM ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -234,6 +237,7 @@ document.addEventListener("DOMContentLoaded", function () {
   functionCaseStudyBento();
   initHubspotPopup();
   functionFilterScroll();
+  functionDragScroll();
 
   }
 });
