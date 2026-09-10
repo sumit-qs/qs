@@ -69,7 +69,7 @@ import { functionDragScroll } from './modules/drag/dragscroll.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Filter Scroll | Through sticky filters file] ##"); // ADD THIS LINE
+  console.log("## [Infinte People Component Fix V1.0] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -116,6 +116,11 @@ document.addEventListener("DOMContentLoaded", function () {
             effects: true,
             normalizeScroll: true,
             ignoreMobileResize: true
+          });
+
+          // Proxy ScrollSmoother scroll events to window for CMS Load compatibility
+          smoother.scrollTrigger.addEventListener('scroll', () => {
+            window.dispatchEvent(new Event('scroll'));
           });
         } else {
           console.warn("[QS] ScrollSmoother existing instance invalid; skipping re-init");
