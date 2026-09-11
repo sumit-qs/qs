@@ -276,7 +276,9 @@ async function sortSearchResultsByDate(resultsWrapper) {
 		)
 	);
 
-	[...tier2Sorted, ...tier1Sorted].forEach((r) => resultsWrapper.appendChild(r.item));
+	// Original
+	//[...tier2Sorted, ...tier1Sorted].forEach((r) => resultsWrapper.appendChild(r.item));
+	[...tier1Sorted, ...tier2Sorted].forEach((r) => resultsWrapper.appendChild(r.item));
 }
 
 // Exportable function to sort native Webflow Search results: static pages
