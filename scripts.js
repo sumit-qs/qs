@@ -70,7 +70,7 @@ import { functionLimitlessPeople } from './modules/finsweet/limitless-people.js'
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Infinte People Component | Custom code V1.0] ##"); // ADD THIS LINE
+  console.log("## [Limitless list items - custom code v2] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,

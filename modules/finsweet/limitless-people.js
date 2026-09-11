@@ -7,6 +7,9 @@
  *
  * Hook: .limitless-collection-wrapper (on the Collection List Wrapper element)
  * Requires: Webflow native pagination ON, Limit items via component property.
+ *
+ * Performance: prefetches the next page in the background immediately after
+ * each load, so clicks feel near-instant regardless of server response time.
  */
 
 export function functionLimitlessPeople() {
@@ -28,6 +31,19 @@ export function functionLimitlessPeople() {
 
   let nextUrl = nextButton.href;
   let loading = false;
+  let prefetchedHtml = null;
+
+  // Prefetch a page in the background and store the HTML string
+  function prefetchPage(url) {
+    if (!url) return;
+    fetch(url)
+      .then(res => res.text())
+      .then(html => { prefetchedHtml = html; })
+      .catch(() => {});
+  }
+
+  // Prefetch page 2 immediately on init
+  prefetchPage(nextUrl);
 
   nextButton.addEventListener('click', async (event) => {
     event.preventDefault();
@@ -39,13 +55,19 @@ export function functionLimitlessPeople() {
     nextButton.setAttribute('aria-busy', 'true');
 
     try {
-      const response = await fetch(nextUrl);
-
-      if (!response.ok) {
-        throw new Error(`Failed to load CMS page: ${response.status}`);
+      // Use prefetched HTML if available, otherwise fetch now
+      let html;
+      if (prefetchedHtml) {
+        html = prefetchedHtml;
+        prefetchedHtml = null;
+      } else {
+        const response = await fetch(nextUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to load CMS page: ${response.status}`);
+        }
+        html = await response.text();
       }
 
-      const html = await response.text();
       const doc = new DOMParser().parseFromString(html, 'text/html');
 
       // Target our collection specifically by class — immune to DOM order
@@ -78,6 +100,9 @@ export function functionLimitlessPeople() {
       // Hide button when no more pages remain
       if (!nextUrl) {
         nextButton.style.display = 'none';
+      } else {
+        // Prefetch the next-next page immediately
+        prefetchPage(nextUrl);
       }
 
     } catch (error) {
