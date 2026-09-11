@@ -66,10 +66,11 @@ import { functionCaseStudyBento } from "./modules/interactive/case-study-bento.j
 import { initHubspotPopup } from './modules/hubspot/hubspot-popup.js';
 import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
 import { functionDragScroll } from './modules/drag/dragscroll.js';
+import { functionLimitlessPeople } from './modules/finsweet/limitless-people.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Infinte People Component Fix V2.0] ##"); // ADD THIS LINE
+  console.log("## [Infinte People Component | Custom code V1.0] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -117,13 +118,6 @@ document.addEventListener("DOMContentLoaded", function () {
             normalizeScroll: true,
             ignoreMobileResize: true
           });
-
-          // Proxy ScrollSmoother scroll events to window for CMS Load compatibility
-          if (smoother?.scrollTrigger?.addEventListener) {
-            smoother.scrollTrigger.addEventListener('scroll', () => {
-              window.dispatchEvent(new Event('scroll'));
-            });
-          }
         } else {
           console.warn("[QS] ScrollSmoother existing instance invalid; skipping re-init");
         }
@@ -243,6 +237,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initHubspotPopup();
   functionFilterScroll();
   functionDragScroll();
+  functionLimitlessPeople();
 
   }
 });
