@@ -54,6 +54,7 @@ const BLACKLISTED_URL_PREFIXES = [
 	// TODO: add URL prefixes for reference/category collections once
 	// confirmed (e.g. Slider Categories for Filters, Accordion Categories
 	// for Filters, Type/Topic/Country reference lists, etc.)
+	"/terms-and-conditions/",
 ];
 
 // ---------------------------------------------------------------------------

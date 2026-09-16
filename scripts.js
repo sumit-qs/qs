@@ -70,7 +70,7 @@ import { functionLimitlessPeople } from './modules/finsweet/limitless-people.js'
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Dragscroll | Divider display on count] ##"); // ADD THIS LINE
+  console.log("## [Search sorting blacklisted legal links] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
