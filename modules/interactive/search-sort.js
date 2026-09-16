@@ -2,8 +2,8 @@
  * Native Webflow Search results — two-tier priority sort.
  *
  * PRIORITY ORDER
- *   Tier 1: CMS collection items (Insights, Case Studies, Webinars, Conferences)
- *   Tier 2: static pages (anything not matching a known CMS collection URL)
+ *   Tier 1: static pages (anything not matching a known CMS collection URL)
+ *   Tier 2: CMS collection items (Insights, Case Studies, Webinars, Conferences, People)
  * Tier 1 always renders entirely above Tier 2 — this is a hard priority
  * split, not a blended sort.
  *
@@ -19,9 +19,9 @@
  *
  *   Tier 2 (collection items): a per-collection CSS selector, fetched from
  *   the live page. See COLLECTIONS below. Collections without a working
- *   date element yet (Solutions, Magazines) are defined but commented out
- *   — left in place so picking this back up later is a five-minute job,
- *   not a rewrite.
+ *   date element yet (People, Solutions, Magazines) are defined with an
+ *   empty selector — the fetch is skipped entirely for these, and items
+ *   sort alphabetically within Tier 2.
  *
  * BLACKLIST
  *   Some collections (e.g. reference/category lists used only as
@@ -57,7 +57,8 @@ const BLACKLISTED_URL_PREFIXES = [
 ];
 
 // ---------------------------------------------------------------------------
-// TIER 2 — active collections with a working date source.
+// TIER 2 — active collections. Empty selector = no fetch, sorts
+// alphabetically within Tier 2.
 // ---------------------------------------------------------------------------
 const COLLECTIONS = [
 	{
@@ -91,6 +92,11 @@ const COLLECTIONS = [
 		// unreliable per page.
 		urlPrefix: "/conference", // matches both /conference/ and /conferences/
 		selector: ".qs-conf-timer-hide",
+	},
+	{
+		name: "people",
+		urlPrefix: "/people/",
+		selector: "", // no date field on People template — sorts alphabetically within Tier 2
 	},
 
 	// -------------------------------------------------------------------
@@ -168,11 +174,13 @@ function getResultTitle(item) {
 
 // ---------------------------------------------------------------------------
 // TIER 2 date extraction — fetch the live page, read the collection's
-// configured selector. Checks datetime/data-date attributes first (in case
-// a hidden timer element stores an ISO string there), then falls back to
-// visible/hidden textContent, then a bare-year fallback from the URL.
+// configured selector. Skips fetch entirely for collections with no selector.
+// Checks datetime/data-date attributes first (in case a hidden timer element
+// stores an ISO string there), then falls back to visible/hidden textContent,
+// then a bare-year fallback from the URL.
 // ---------------------------------------------------------------------------
 async function extractCollectionDate(href, selector) {
+	if (!selector) return null;
 	try {
 		const res = await fetch(href, { credentials: "same-origin" });
 		if (!res.ok) return null;
@@ -276,8 +284,6 @@ async function sortSearchResultsByDate(resultsWrapper) {
 		)
 	);
 
-	// Original
-	//[...tier2Sorted, ...tier1Sorted].forEach((r) => resultsWrapper.appendChild(r.item));
 	[...tier1Sorted, ...tier2Sorted].forEach((r) => resultsWrapper.appendChild(r.item));
 }
 

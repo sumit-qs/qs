@@ -70,7 +70,7 @@ import { functionLimitlessPeople } from './modules/finsweet/limitless-people.js'
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Search sorting | Static -> CMS] ##"); // ADD THIS LINE
+  console.log("## [Search sorting - addition of people collection and date logic] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
