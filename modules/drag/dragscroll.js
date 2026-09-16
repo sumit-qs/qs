@@ -155,3 +155,14 @@ export function functionDragScroll() {
     }
   });
 }
+
+export function functionQsimDivider() {
+  const wrapper = document.querySelector('.qsim-list-wrapper.qs-drag-responsive');
+  if (!wrapper) return;
+
+  const list = wrapper.querySelector('.qsim-list');
+  if (!list) return;
+
+  const count = list.querySelectorAll('.qsim-list-item').length;
+  wrapper.setAttribute('data-qsim-count', count <= 4 ? 'few' : 'many');
+}

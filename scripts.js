@@ -65,12 +65,12 @@ import { initCountdownFooterOffset } from './modules/countdown/footer-offset.js'
 import { functionCaseStudyBento } from "./modules/interactive/case-study-bento.js";
 import { initHubspotPopup } from './modules/hubspot/hubspot-popup.js';
 import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
-import { functionDragScroll } from './modules/drag/dragscroll.js';
+import { functionDragScroll, functionQsimDivider } from './modules/drag/dragscroll.js';
 import { functionLimitlessPeople } from './modules/finsweet/limitless-people.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Search sorting - addition of people collection and date logic] ##"); // ADD THIS LINE
+  console.log("## [Dragscroll | Divider display on count] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -238,6 +238,7 @@ document.addEventListener("DOMContentLoaded", function () {
   functionFilterScroll();
   functionDragScroll();
   functionLimitlessPeople();
+  functionQsimDivider();
 
   }
 });
