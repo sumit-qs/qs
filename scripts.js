@@ -67,10 +67,11 @@ import { initHubspotPopup } from './modules/hubspot/hubspot-popup.js';
 import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
 import { functionDragScroll, functionQsimDivider } from './modules/drag/dragscroll.js';
 import { functionLimitlessPeople } from './modules/finsweet/limitless-people.js';
+import { functionCustomSearch } from './modules/interactive/custom-search.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Dragscroll All fix V02] ##"); // ADD THIS LINE
+  console.log("## [Custom Search V01] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -239,6 +240,7 @@ document.addEventListener("DOMContentLoaded", function () {
   functionDragScroll();
   functionLimitlessPeople();
   functionQsimDivider();
+  functionCustomSearch();
 
   }
 });
