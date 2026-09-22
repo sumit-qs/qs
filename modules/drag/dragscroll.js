@@ -88,9 +88,22 @@ const clampToBounds = (container, track, instance) => {
   }
 };
 
-function initDrag(container, track) {
-  if (instanceMap.has(container)) return; // already live
+// Resolves when all <img> elements inside track are loaded
+function waitForImages(track) {
+  const images = Array.from(track.querySelectorAll("img"));
+  const pending = images.filter((img) => !img.complete);
+  if (pending.length === 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    let count = pending.length;
+    const done = () => { if (--count === 0) resolve(); };
+    pending.forEach((img) => {
+      img.addEventListener("load",  done, { once: true });
+      img.addEventListener("error", done, { once: true });
+    });
+  });
+}
 
+function setupDrag(container, track) {
   /* DELETE AFTER FEATURE IS FIXED */
   console.log(`[qs-drag] initDrag`, {
     container,
@@ -120,7 +133,6 @@ function initDrag(container, track) {
   };
   window.addEventListener("resize", onResize);
 
-  // Re-measure when track content changes late (e.g. CMS list finishes render)
   const observer = new MutationObserver((records) => {
     const structural = records.some(
       (r) => r.type === "childList" && (r.addedNodes.length || r.removedNodes.length)
@@ -132,13 +144,18 @@ function initDrag(container, track) {
   instanceMap.set(container, { instance, onResize, observer });
 }
 
+function initDrag(container, track) {
+  if (instanceMap.has(container)) return; // already live
+  waitForImages(track).then(() => setupDrag(container, track));
+}
+
 function destroyDrag(container, track) {
   const stored = instanceMap.get(container);
   if (!stored) return;
   stored.instance.kill();
   window.removeEventListener("resize", stored.onResize);
   stored.observer.disconnect();
-  gsap.set(track, { x: 0 }); // reset residual transform from GSAP
+  gsap.set(track, { x: 0 });
   instanceMap.delete(container);
 }
 
