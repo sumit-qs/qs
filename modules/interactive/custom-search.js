@@ -87,5 +87,10 @@ export function functionCustomSearch() {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => filter(e.target.value), 150);
     });
+
+    input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") e.preventDefault();
+    });
   });
+    
 }
