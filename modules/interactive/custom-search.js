@@ -12,21 +12,23 @@
  * V02: targets ALL lists matching data-search-list value.
  *
  * V03: Single unified result list
- *   Collections wrapper: data-attribute [custom-search="collection-container"]
- *   Result container:    data-attribute [custom-search="result-container"]    (hidden by default)
- *   Result list:         data-attribute [custom-search="result-list"]
- *   Unique value el:     data-attribute [custom-search="unique-value"]        (hidden text inside each item, holds slug)
+ *   Collections wrapper: custom-search="collection-container"
+ *   Result container:    custom-search="result-container"    (hidden via CSS class by default)
+ *   Result list:         custom-search="result-list"
+ *   Unique value el:     custom-search="unique-value"        (hidden text inside each item, holds slug)
  *
  * V03 behaviour:
- *   - On search: hides collection-container, shows result-wrapper, clones matching
- *     items from all source lists into result-list, deduplicates by unique-value.
- *   - On clear: restores collection-container, hides result-wrapper, clears result-list.
+ *   - On search: hides collection-container, shows result-container, clones matching
+ *     items from all source lists into result-list, deduplicates by unique-value slug.
+ *   - On clear: restores collection-container, hides result-container, clears result-list.
  */
 
 import { gsap } from "gsap";
 import { myEase } from "../../config/variables.js";
 
 export function functionCustomSearch() {
+  console.log("## [Custom Search V03] ##");
+
   const inputs = document.querySelectorAll("[data-search-input]");
   if (!inputs.length) return;
 
@@ -37,9 +39,9 @@ export function functionCustomSearch() {
 
     // V03 elements
     const collectionsContainer = document.querySelector('[custom-search="collection-container"]');
-    const resultWrapper = document.querySelector('[custom-search="result-container"]');
+    const resultContainer = document.querySelector('[custom-search="result-container"]');
     const resultList = document.querySelector('[custom-search="result-list"]');
-    const isV3 = !!(collectionsContainer && resultWrapper && resultList);
+    const isV3 = !!(collectionsContainer && resultContainer && resultList);
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -102,7 +104,7 @@ export function functionCustomSearch() {
     const showCollections = () => {
       clearResultList();
       collectionsContainer.style.removeProperty("display");
-      resultWrapper.style.display = "none";
+      resultContainer.style.setProperty("display", "none", "important");
       showAllV2();
     };
 
@@ -116,7 +118,7 @@ export function functionCustomSearch() {
         if (!text.includes(q)) return;
 
         const slug = getSlug(item);
-        if (slug && seen.has(slug)) return; // deduplicate
+        if (slug && seen.has(slug)) return; // skip true duplicates
         if (slug) seen.add(slug);
 
         const clone = item.cloneNode(true);
@@ -127,8 +129,8 @@ export function functionCustomSearch() {
       });
 
       // Swap visibility
-      collectionsContainer.style.display = "none";
-      resultWrapper.style.removeProperty("display");
+      collectionsContainer.style.setProperty("display", "none", "important");
+      resultContainer.style.setProperty("display", "block", "important");
 
       // Animate clones in
       if (clones.length) {
