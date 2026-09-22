@@ -1,14 +1,15 @@
 /**
  * Custom CMS Search
  *
- * Wires a search input to a CMS list using data attributes only.
- * No DOM proximity requirements — the input finds its list by ID reference.
+ * Wires a search input to one or more CMS lists using data attributes only.
+ * No DOM proximity requirements — the input finds its lists by ID reference.
  *
  * Usage:
  *   Search input:  data-search-input="my-list"
- *   CMS list:      data-search-list="my-list"
- *   Each CMS item: data-search-item  (optional — falls back to direct children)
+ *   CMS list:      data-search-list="my-list"      ← use same value on multiple lists
+ *   Each CMS item: data-search-item                ← optional, falls back to direct children
  *
+ * V02: targets ALL lists matching the data-search-list value, not just the first.
  * Multiple independent search instances on the same page are supported.
  * The search is case-insensitive and matches any substring in the item's text.
  */
@@ -22,15 +23,13 @@ export function functionCustomSearch() {
 
   inputs.forEach((input) => {
     const listId = input.getAttribute("data-search-input");
-    const list = document.querySelector(`[data-search-list="${listId}"]`);
-    if (!list) return;
+    const lists = Array.from(document.querySelectorAll(`[data-search-list="${listId}"]`));
+    if (!lists.length) return;
 
-    const getItems = () => {
+    const getItems = () => lists.flatMap((list) => {
       const tagged = list.querySelectorAll("[data-search-item]");
-      return tagged.length
-        ? Array.from(tagged)
-        : Array.from(list.children);
-    };
+      return tagged.length ? Array.from(tagged) : Array.from(list.children);
+    });
 
     const showAll = () => {
       getItems().forEach((item) => {
@@ -89,8 +88,7 @@ export function functionCustomSearch() {
     });
 
     input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") e.preventDefault();
+      if (e.key === "Enter") e.preventDefault();
     });
   });
-    
 }

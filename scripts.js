@@ -71,7 +71,7 @@ import { functionCustomSearch } from './modules/interactive/custom-search.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Custom Search V01.01] ##"); // ADD THIS LINE
+  console.log("## [Custom Search V02] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
