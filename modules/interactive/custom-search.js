@@ -13,7 +13,7 @@
  *
  * V03: Single unified result list
  *   Collections wrapper: data-attribute [custom-search="collection-container"]
- *   Result wrapper:      data-attribute [custom-search="result-wrapper"]      (hidden by default)
+ *   Result container:    data-attribute [custom-search="result-container"]    (hidden by default)
  *   Result list:         data-attribute [custom-search="result-list"]
  *   Unique value el:     data-attribute [custom-search="unique-value"]        (hidden text inside each item, holds slug)
  *
@@ -37,7 +37,7 @@ export function functionCustomSearch() {
 
     // V03 elements
     const collectionsContainer = document.querySelector('[custom-search="collection-container"]');
-    const resultWrapper = document.querySelector('[custom-search="result-wrapper"]');
+    const resultWrapper = document.querySelector('[custom-search="result-container"]');
     const resultList = document.querySelector('[custom-search="result-list"]');
     const isV3 = !!(collectionsContainer && resultWrapper && resultList);
 
