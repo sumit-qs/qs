@@ -52,11 +52,24 @@ const getTrack = (container) =>
   container.querySelector(`.${TRACK_CLASS}`);
 
 const getBounds = (container, track) => {
-  const style        = window.getComputedStyle(container);
-  const paddingLeft   = parseFloat(style.paddingLeft) || 0;
-  const paddingRight  = parseFloat(style.paddingRight) || 0;
+  const style          = window.getComputedStyle(container);
+  const paddingLeft    = parseFloat(style.paddingLeft) || 0;
+  const paddingRight   = parseFloat(style.paddingRight) || 0;
   const containerWidth = container.offsetWidth;
   const trackWidth     = track.scrollWidth;
+
+  /* DELETE AFTER FEATURE IS FIXED */
+  console.log(`[qs-drag] getBounds`, {
+    containerWidth,
+    trackWidth,
+    paddingLeft,
+    paddingRight,
+    minX: containerWidth - trackWidth - paddingRight + paddingLeft,
+    maxX: 0,
+    overflows: trackWidth > containerWidth,
+  });
+  /* DELETE AFTER FEATURE IS FIXED */
+
   return {
     minX: containerWidth - trackWidth - paddingRight + paddingLeft,
     maxX: 0,
@@ -77,6 +90,18 @@ const clampToBounds = (container, track, instance) => {
 
 function initDrag(container, track) {
   if (instanceMap.has(container)) return; // already live
+
+  /* DELETE AFTER FEATURE IS FIXED */
+  console.log(`[qs-drag] initDrag`, {
+    container,
+    track,
+    trackScrollWidth: track.scrollWidth,
+    trackOffsetWidth: track.offsetWidth,
+    containerOffsetWidth: container.offsetWidth,
+    trackComputedFlexWrap: window.getComputedStyle(track).flexWrap,
+    trackComputedWidth: window.getComputedStyle(track).width,
+  });
+  /* DELETE AFTER FEATURE IS FIXED */
 
   const instance = Draggable.create(track, {
     type: "x",

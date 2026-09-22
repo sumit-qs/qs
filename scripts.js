@@ -70,7 +70,7 @@ import { functionLimitlessPeople } from './modules/finsweet/limitless-people.js'
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Search sorting blacklisted legal links] ##"); // ADD THIS LINE
+  console.log("## [Dragscroll All fix V01] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
