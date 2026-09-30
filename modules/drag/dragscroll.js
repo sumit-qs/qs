@@ -199,12 +199,11 @@ export function functionDragScroll() {
 }
 
 export function functionQsimDivider() {
-  const wrapper = document.querySelector('.qsim-list-wrapper.qs-drag-responsive');
-  if (!wrapper) return;
+  document.querySelectorAll('.qsim-list-wrapper.qs-drag-responsive').forEach((wrapper) => {
+    const list = wrapper.querySelector('.qsim-list');
+    if (!list) return;
 
-  const list = wrapper.querySelector('.qsim-list');
-  if (!list) return;
-
-  const count = list.querySelectorAll('.qsim-list-item').length;
-  wrapper.setAttribute('data-qsim-count', count <= 4 ? 'few' : 'many');
+    const count = list.querySelectorAll('.qsim-list-item').length;
+    wrapper.setAttribute('data-qsim-count', count <= 4 ? 'few' : 'many');
+  });
 }

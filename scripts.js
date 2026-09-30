@@ -71,7 +71,7 @@ import { functionCustomSearch } from './modules/interactive/custom-search.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Custom Search V03.02] ##"); // ADD THIS LINE
+  console.log("## [Dragscroll divider fix for issues page] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
