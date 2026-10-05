@@ -68,10 +68,11 @@ import { functionFilterScroll } from './modules/finsweet/filter-scroll.js';
 import { functionDragScroll, functionQsimDivider } from './modules/drag/dragscroll.js';
 import { functionLimitlessPeople } from './modules/finsweet/limitless-people.js';
 import { functionCustomSearch } from './modules/interactive/custom-search.js';
+import { functionQsimGate } from "./modules/interactive/gate-qsim.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Dragscroll divider fix for issues page] ##"); // ADD THIS LINE
+  console.log("## [QSIM additional content within gated wrapper] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -241,6 +242,7 @@ document.addEventListener("DOMContentLoaded", function () {
   functionLimitlessPeople();
   functionQsimDivider();
   functionCustomSearch();
+  functionQsimGate();
 
   }
 });
