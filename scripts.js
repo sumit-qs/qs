@@ -72,7 +72,7 @@ import { functionQsimGate } from "./modules/interactive/gate-qsim.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [QSIM additional content within gated wrapper] ##"); // ADD THIS LINE
+  console.log("## [QSIM Gate V02] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
