@@ -1,4 +1,6 @@
+import { gsap } from "gsap";
 import { ScrollSmoother, ScrollTrigger } from "gsap/all";
+import { myEase } from "../../config/variables.js";
 
 // QSIM gate — page scroll lock while the gate is visible.
 //
@@ -11,7 +13,11 @@ import { ScrollSmoother, ScrollTrigger } from "gsap/all";
 //   - freezes the page behind it (nothing but the gate container scrolls);
 //   - forwards wheel / touch input made anywhere on the gate (e.g. over the
 //     blurred area outside the container) to the container;
-//   - releases the page again when the gate hides / is removed (form submit).
+//   - releases the page again when the gate hides / is removed (form submit);
+//   - animates the container: it opens COLLAPSED (default 50vh, anchored to the
+//     bottom of the viewport over the blurred page), smoothly EXPANDS to 100vh as
+//     soon as the user scrolls down inside it, and smoothly COLLAPSES back to 50vh
+//     when the user scrolls up past its top.
 //
 // Consequence (by design): while locked the page cannot be scrolled back above
 // 1200px, so on QSIM articles the gate stays until the form is submitted —
@@ -26,8 +32,11 @@ import { ScrollSmoother, ScrollTrigger } from "gsap/all";
 //
 // Webflow hooks:
 //   gate       -> .qs-gate  + combo class .is-qsim  + attribute data-gate="qsim-gate"
-//   container  -> [data-gate-scroll]  (fallback: .test-qsim-01), a child of the gate,
-//                 overflow auto. Its height / position is plain CSS (any size).
+//   container  -> [data-gate-scroll]  (fallback: .test-qsim-01), a child of the gate:
+//                 position absolute; bottom 0; left 0; width 100%; height 50vh; overflow auto.
+//                 Optional attributes on the container:
+//                   data-gate-collapsed="50"   collapsed height in vh (default 50 — keep equal to the Webflow height)
+//                   data-gate-duration="0.8"   expand / collapse duration in seconds (default 0.8)
 export function functionQsimGate() {
   const GATE_SELECTOR = '.qs-gate.is-qsim[data-gate="qsim-gate"]';
   const INNER_SELECTOR = '[data-gate-scroll], .test-qsim-01';
@@ -41,6 +50,8 @@ export function functionQsimGate() {
   gate.dataset.qsimGateBound = 'true';
 
   const docEl = document.documentElement;
+  const collapsedVh = parseFloat(inner.dataset.gateCollapsed) || 50;
+  const duration = parseFloat(inner.dataset.gateDuration) || 0.8;
 
   let locked = false;
   let pending = 0;               // requestAnimationFrame id while waiting for the smoother to settle
@@ -48,6 +59,10 @@ export function functionQsimGate() {
   let normalizerOff = null;      // normalizer WE disabled (touch / Safari path)
   let savedOverflow = null;      // html/body overflow before we hid it (touch / Safari path)
   let lastTouchY = 0;
+  let expanded = false;          // container is (or is animating towards) 100vh
+  let animating = false;         // expand / collapse tween running
+  let collapsing = false;        // collapse tween running (input ignored)
+  let tween = null;
   let wasVisible = false;
   let bound = false;
   let observer = null;
@@ -58,6 +73,48 @@ export function functionQsimGate() {
   const getSmoother = () => {
     try { return typeof ScrollSmoother.get === 'function' ? ScrollSmoother.get() : null; }
     catch (_) { return null; }
+  };
+
+  // ---- expand / collapse ----------------------------------------------------
+  const killTween = () => {
+    if (tween) { tween.kill(); tween = null; }
+    animating = false;
+    collapsing = false;
+  };
+  const resetHeight = () => {
+    killTween();
+    gsap.set(inner, { clearProps: 'height' }); // back to the Webflow (collapsed) height
+    expanded = false;
+  };
+  const expand = () => {
+    if (expanded) return;
+    killTween();
+    expanded = true;
+    animating = true;
+    tween = gsap.to(inner, {
+      height: '100vh',
+      duration,
+      ease: myEase,
+      onComplete: () => { tween = null; animating = false; }
+    });
+  };
+  const collapse = () => {
+    if (!expanded || collapsing) return;
+    killTween();
+    expanded = false;
+    animating = true;
+    collapsing = true;
+    tween = gsap.to(inner, {
+      height: collapsedVh + 'vh',
+      duration,
+      ease: myEase,
+      onComplete: () => {
+        tween = null;
+        animating = false;
+        collapsing = false;
+        gsap.set(inner, { clearProps: 'height' });
+      }
+    });
   };
 
   // ---- lock / unlock --------------------------------------------------------
@@ -104,6 +161,7 @@ export function functionQsimGate() {
 
   const unlock = () => {
     if (pending) { cancelAnimationFrame(pending); pending = 0; }
+    killTween(); // keep the current height — the gate is sliding out
     inner.style.overscrollBehaviorY = '';
     if (!locked) return;
     locked = false;
@@ -127,7 +185,16 @@ export function functionQsimGate() {
   // Input over the container itself scrolls it natively. Input anywhere else on
   // the gate (e.g. the blurred area) is forwarded to the container.
   const onWheel = (e) => {
-    if (!locked || !gate.contains(e.target) || inner.contains(e.target)) return;
+    if (!locked || !gate.contains(e.target)) return;
+    if (collapsing) { e.preventDefault(); return; } // ignore input while collapsing
+    if (e.deltaY > 0) {
+      expand();                                      // scrolling down -> 50vh to 100vh
+    } else if (e.deltaY < 0 && expanded && !animating && inner.scrollTop <= 0) {
+      e.preventDefault();
+      collapse();                                    // scrolling up past the top -> 100vh to 50vh
+      return;
+    }
+    if (inner.contains(e.target)) return;
     e.preventDefault();
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? inner.clientHeight : 1;
     inner.scrollTop += e.deltaY * unit;
@@ -141,7 +208,16 @@ export function functionQsimGate() {
     const y = e.touches[0].clientY;
     const dy = y - lastTouchY;
     lastTouchY = y;
-    if (!gate.contains(e.target) || inner.contains(e.target)) return;
+    if (!gate.contains(e.target)) return;
+    if (collapsing) { e.preventDefault(); return; }
+    if (dy < -2) {
+      expand();                                      // finger up = scrolling down
+    } else if (dy > 2 && expanded && !animating && inner.scrollTop <= 0) {
+      e.preventDefault();
+      collapse();                                    // finger down at the top = scrolling up past it
+      return;
+    }
+    if (inner.contains(e.target)) return;
     e.preventDefault();
     inner.scrollTop -= dy;
   };
@@ -181,7 +257,8 @@ export function functionQsimGate() {
     if (isRemoved()) { destroy(); return; }
     const visible = isVisible();
     if (visible && !wasVisible) {
-      inner.scrollTop = 0; // gate just (re)opened — container starts at its top
+      resetHeight();       // gate just (re)opened — container starts collapsed, at its top
+      inner.scrollTop = 0;
       requestLock();
     } else if (!visible && wasVisible) {
       unlock();            // gate hiding (e.g. form submit): free the page
