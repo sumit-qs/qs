@@ -1,5 +1,5 @@
 /**
- * Native Webflow Search results — two-tier priority sort.
+ * Native Webflow Search results — two-tier priority sort with collection filtering.
  *
  * PRIORITY ORDER
  *   Tier 1: static pages (anything not matching a known CMS collection URL)
@@ -11,55 +11,45 @@
  *   1. Newest date first (year, or full date where available)
  *   2. Alphabetical by title as a tiebreak — same date, or no date at all
  *
- * DATE SOURCES
- *   Tier 1 (static pages): a 4-digit year pulled from the URL path, or
- *   failing that, from the page title text. No page fetch needed for the
- *   year check itself — it's read from the search result's own link/title
- *   already present in the DOM.
- *
- *   Tier 2 (collection items): a per-collection CSS selector, fetched from
- *   the live page. See COLLECTIONS below. Collections without a working
- *   date element yet (People, Solutions, Magazines) are defined with an
- *   empty selector — the fetch is skipped entirely for these, and items
- *   sort alphabetically within Tier 2.
+ * COLLECTION FILTER BUTTONS
+ *   Buttons with class .btn-is-search and a data-collection attribute filter
+ *   the visible results. data-collection values map to COLLECTIONS[].name,
+ *   plus the reserved value "static" for static/Tier 1 pages.
+ *   - Default (no active buttons): all results shown in tier order
+ *   - One or more active: only matching results shown; hidden items stay in
+ *     the DOM (display:none) so re-showing is instant with no re-sort
+ *   - All buttons deactivated: reverts to full default view
+ *   - Multiple active buttons: union of all selected collections shown
  *
  * BLACKLIST
- *   Some collections (e.g. reference/category lists used only as
- *   conditioning fields inside other collections) are not real pages and
- *   should never appear in search at all. BLACKLISTED_URL_PREFIXES holds
- *   those URL prefixes; matching items are removed from the DOM entirely,
- *   before tiering/sorting even runs.
- *
- *   NOTE: this is a client-side removal AFTER Webflow's native search has
- *   already indexed and returned these items — not a true search-index
- *   exclusion. To stop them from being indexed by Webflow itself, that's
- *   a per-collection "Include in search results" setting in Site Settings
- *   → Search, not something this script can control.
+ *   URL prefixes in BLACKLISTED_URL_PREFIXES are removed from the DOM
+ *   entirely before tiering/sorting runs. This is a client-side removal
+ *   only — Webflow's search index is unaffected.
  *
  * SCOPE / LIMIT
  *   Search results limit raised to 60 (from 10). All 60 are fetched in
  *   parallel for Tier 2 date extraction, so watch for any rate-limiting
  *   or performance concerns at that volume in production.
  *
- * Hooks: .qs-search-list (results wrapper), .qs-search-item (each result),
- * <a href> inside each result (used to identify collection + fetch page).
+ * Hooks:
+ *   .qs-search-list        — results wrapper
+ *   .qs-search-item        — each result
+ *   .btn-is-search         — filter buttons
+ *   [data-collection]      — collection name on each filter button
+ *   <a href>               — used to identify collection + fetch page
  */
 
 // ---------------------------------------------------------------------------
-// BLACKLIST — reference-only collections that should never appear in search.
-// Populate with URL prefixes, e.g. "/slider-categories-for-filters/".
-// Matching items are removed from the DOM entirely before any sorting.
+// BLACKLIST — items removed from the DOM entirely before any sorting.
 // ---------------------------------------------------------------------------
 const BLACKLISTED_URL_PREFIXES = [
-	// TODO: add URL prefixes for reference/category collections once
-	// confirmed (e.g. Slider Categories for Filters, Accordion Categories
-	// for Filters, Type/Topic/Country reference lists, etc.)
 	"/terms-and-conditions/",
+	"/solution/", // CMS template only — redirects to /solutions/ static pages
 ];
 
 // ---------------------------------------------------------------------------
-// TIER 2 — active collections. Empty selector = no fetch, sorts
-// alphabetically within Tier 2.
+// COLLECTIONS — CMS collections classified as Tier 2.
+// Empty selector = no fetch, sorts alphabetically within Tier 2.
 // ---------------------------------------------------------------------------
 const COLLECTIONS = [
 	{
@@ -70,66 +60,36 @@ const COLLECTIONS = [
 	{
 		name: "case-studies",
 		urlPrefix: "/case-studies/",
-		// Same template family as Insights, distinguished by extra classes
 		selector: ".qs-section-hero-insight .caption.reversed.label-unwrap",
 	},
 	{
 		name: "webinars",
 		urlPrefix: "/webinars/",
-		// Page has two session slots (Session 1 / Session 2); first .body
-		// found is the primary/earliest session time, which is what we want.
 		selector: ".qs-new-webinar-hero-wrapper .body",
 	},
 	{
 		name: "conferences",
-		// Matches both /conference/... and /conferences/.../2026/overview
-		// style static pages — all built from the "Header / New Conference"
-		// component, which contains a hidden element (.qs-conf-timer-hide)
-		// bound to the "KEEP — Countdown Timer" Date/Time field (confirmed
-		// via CMS field inspection). Renders as "June 24, 2027" on the
-		// page — day AFTER month, unlike Insights/Case Studies which
-		// render day BEFORE month. This sidesteps the earlier problem
-		// where visible hero text was shared/static across pages and
-		// unreliable per page.
 		urlPrefix: "/conference", // matches both /conference/ and /conferences/
 		selector: ".qs-conf-timer-hide",
 	},
 	{
 		name: "people",
 		urlPrefix: "/people/",
-		selector: "", // no date field on People template — sorts alphabetically within Tier 2
+		selector: "", // no date field on People template — sorts alphabetically
 	},
 
-	// -------------------------------------------------------------------
-	// TIER 2 — collections with NO working date source yet. Defined here,
-	// commented out, so they're ready to activate the moment a date
-	// element exists on their frontend. Uncomment + fill in `selector`
-	// and move into the active COLLECTIONS array above when ready.
-	// -------------------------------------------------------------------
-	// {
-	// 	name: "solutions",
-	// 	urlPrefix: "/solutions/",
-	// 	selector: "", // TODO: no date field rendered on frontend yet
-	// },
-	// {
-	// 	name: "magazines",
-	// 	urlPrefix: "/magazines/",
-	// 	selector: "", // TODO: Publication Date exists in CMS, not on frontend yet
-	// },
+	// Uncomment + fill selector when date element exists on frontend:
+	// { name: "solutions", urlPrefix: "/solutions/", selector: "" },
+	// { name: "magazines", urlPrefix: "/magazines/", selector: "" },
 ];
 
 const MONTH_NAMES =
 	"January|February|March|April|May|June|July|August|September|October|November|December";
 
-// Tried in order. First pattern that matches wins.
 const DATE_PATTERNS = [
-	// "17 July 2026" / "Article 17 July 2026"
 	new RegExp(`\\b(\\d{1,2}\\s+(?:${MONTH_NAMES})\\s+\\d{4})\\b`),
-	// "June 24, 2027" — how the conference countdown timer field renders
 	new RegExp(`\\b((?:${MONTH_NAMES})\\s+\\d{1,2},\\s*\\d{4})\\b`),
-	// "8/7/2026 8:00 AM" / "8/7/2026"
 	/\b(\d{1,2}\/\d{1,2}\/\d{4}(?:\s+\d{1,2}:\d{2}\s*(?:AM|PM))?)\b/i,
-	// ISO-ish, in case a countdown timer stores "2026-07-08" etc.
 	/\b(\d{4}-\d{2}-\d{2})\b/,
 ];
 
@@ -156,9 +116,6 @@ function parseDateFromText(text) {
 	return null;
 }
 
-// Bare-year fallback: used when a full date can't be parsed but a 4-digit
-// year is present. Treated as Jan 1 of that year — low precision, last
-// resort, but still enough to sort correctly against other years.
 function extractYearAsDate(text) {
 	const match = text.match(YEAR_PATTERN);
 	if (!match) return null;
@@ -173,13 +130,6 @@ function getResultTitle(item) {
 	);
 }
 
-// ---------------------------------------------------------------------------
-// TIER 2 date extraction — fetch the live page, read the collection's
-// configured selector. Skips fetch entirely for collections with no selector.
-// Checks datetime/data-date attributes first (in case a hidden timer element
-// stores an ISO string there), then falls back to visible/hidden textContent,
-// then a bare-year fallback from the URL.
-// ---------------------------------------------------------------------------
 async function extractCollectionDate(href, selector) {
 	if (!selector) return null;
 	try {
@@ -200,8 +150,6 @@ async function extractCollectionDate(href, selector) {
 		const textDate = parseDateFromText(el.textContent || "");
 		if (textDate) return textDate;
 
-		// Selector matched but nothing parseable inside it — try a bare
-		// year from the URL as a last resort before giving up.
 		return extractYearAsDate(href);
 	} catch (err) {
 		console.warn("[search-sort] fetch failed for", href, err);
@@ -209,16 +157,10 @@ async function extractCollectionDate(href, selector) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// TIER 1 date extraction — no fetch needed. Year from the URL first, title
-// text second.
-// ---------------------------------------------------------------------------
 function extractStaticDate(href, title) {
 	return extractYearAsDate(href || "") || extractYearAsDate(title || "");
 }
 
-// Newest first; alphabetical by title as a tiebreak (including when
-// neither item has a date at all).
 function sortByDateThenTitle(entries) {
 	return entries.sort((a, b) => {
 		if (a.date && b.date && a.date.getTime() !== b.date.getTime()) {
@@ -230,19 +172,45 @@ function sortByDateThenTitle(entries) {
 	});
 }
 
+// ---------------------------------------------------------------------------
+// FILTER — applies active button selection to already-sorted, stored entries.
+// Operates purely on display:none toggling; never re-sorts or re-fetches.
+// ---------------------------------------------------------------------------
+function applyFilter(allEntries, activeCollections) {
+	const noFilter = activeCollections.size === 0;
+
+	for (const entry of allEntries) {
+		let visible;
+		if (noFilter) {
+			visible = true;
+		} else if (activeCollections.has("static")) {
+			// "static" selected: show static pages, and any other active collections
+			visible =
+				entry.tier === "static" ||
+				(entry.collectionName && activeCollections.has(entry.collectionName));
+		} else {
+			visible = entry.collectionName && activeCollections.has(entry.collectionName);
+		}
+		entry.item.style.display = visible ? "" : "none";
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SORT — classifies, fetches dates, sorts, appends to DOM, returns entry list.
+// ---------------------------------------------------------------------------
 async function sortSearchResultsByDate(resultsWrapper) {
 	let items = Array.from(resultsWrapper.querySelectorAll(".qs-search-item"));
-	if (!items.length) return;
+	if (!items.length) return [];
 
-	// --- Blacklist pass: strip reference-only collection items entirely ---
+	// Blacklist pass
 	for (const item of items) {
 		const href = item.querySelector("a[href]")?.getAttribute("href");
 		if (isBlacklisted(href)) item.remove();
 	}
 	items = items.filter((item) => item.isConnected);
-	if (!items.length) return;
+	if (!items.length) return [];
 
-	// --- Classify into Tier 1 (static) / Tier 2 (collection) ---
+	// Classify
 	const tier1 = [];
 	const tier2 = [];
 
@@ -252,18 +220,17 @@ async function sortSearchResultsByDate(resultsWrapper) {
 		const config = getCollectionConfig(href);
 
 		if (config) {
-			tier2.push({ item, href, title, config });
+			tier2.push({ item, href, title, config, tier: "collection", collectionName: config.name });
 		} else {
-			tier1.push({ item, href, title });
+			tier1.push({ item, href, title, tier: "static", collectionName: null });
 		}
 	}
 
-	// --- Tier 1: date from URL/title, no fetch ---
+	// Date extraction
 	const tier1Sorted = sortByDateThenTitle(
 		tier1.map((r) => ({ ...r, date: extractStaticDate(r.href, r.title) }))
 	);
 
-	// --- Tier 2: date from live page fetch, per-collection selector ---
 	const tier2WithDates = await Promise.all(
 		tier2.map(async (r) => ({
 			...r,
@@ -274,23 +241,51 @@ async function sortSearchResultsByDate(resultsWrapper) {
 
 	// TEMP DEBUG — remove once confirmed working on live
 	console.log(
-		"[search-sort] Tier 1 (static, sorted):",
-		tier1Sorted.map((r) => `${r.title || r.href}: ${r.date ? r.date.toDateString() : "undated"}`)
+		"[search-sort] Tier 1 (static):",
+		tier1Sorted.map((r) => `${r.title || r.href}: ${r.date?.toDateString() ?? "undated"}`)
 	);
 	console.log(
-		"[search-sort] Tier 2 (collections, sorted):",
-		tier2Sorted.map(
-			(r) =>
-				`${r.config.name} — ${r.title || r.href}: ${r.date ? r.date.toDateString() : "undated"}`
-		)
+		"[search-sort] Tier 2 (collections):",
+		tier2Sorted.map((r) => `${r.collectionName} — ${r.title || r.href}: ${r.date?.toDateString() ?? "undated"}`)
 	);
 
-	[...tier1Sorted, ...tier2Sorted].forEach((r) => resultsWrapper.appendChild(r.item));
+	// Append in tier order
+	const allEntries = [...tier1Sorted, ...tier2Sorted];
+	allEntries.forEach((r) => resultsWrapper.appendChild(r.item));
+
+	return allEntries;
 }
 
-// Exportable function to sort native Webflow Search results: static pages
-// first, then CMS collection items, each tier sorted newest → oldest with
-// alphabetical tiebreaks.
+// ---------------------------------------------------------------------------
+// BUTTON FILTER INIT — wires up .btn-is-search buttons after sort completes.
+// ---------------------------------------------------------------------------
+function initFilterButtons(allEntries) {
+	const buttons = Array.from(document.querySelectorAll(".btn-is-search[data-collection]"));
+	if (!buttons.length) return;
+
+	const activeCollections = new Set();
+
+	buttons.forEach((btn) => {
+		btn.addEventListener("click", () => {
+			const collection = btn.getAttribute("data-collection");
+			if (!collection) return;
+
+			if (activeCollections.has(collection)) {
+				activeCollections.delete(collection);
+				btn.classList.remove("is-active");
+			} else {
+				activeCollections.add(collection);
+				btn.classList.add("is-active");
+			}
+
+			applyFilter(allEntries, activeCollections);
+		});
+	});
+}
+
+// ---------------------------------------------------------------------------
+// EXPORT
+// ---------------------------------------------------------------------------
 export function functionSearchSort() {
 	if (!window.location.pathname.includes("/search")) return;
 
@@ -299,12 +294,24 @@ export function functionSearchSort() {
 
 	let debounceTimer;
 	let hasSortedOnce = false;
+	let allEntries = [];
 
-	function runSort() {
+	async function runSort() {
 		observer.disconnect();
-		sortSearchResultsByDate(resultsWrapper).finally(() => {
+		try {
+			allEntries = await sortSearchResultsByDate(resultsWrapper);
+
+			// Re-wire buttons with fresh entry list after each sort
+			// (new search query = new DOM items)
+			initFilterButtons(allEntries);
+
+			// Reset active button states on new search
+			document.querySelectorAll(".btn-is-search.is-active").forEach((btn) => {
+				btn.classList.remove("is-active");
+			});
+		} finally {
 			observer.observe(resultsWrapper, { childList: true });
-		});
+		}
 	}
 
 	const observer = new MutationObserver(() => {
@@ -314,9 +321,7 @@ export function functionSearchSort() {
 
 	observer.observe(resultsWrapper, { childList: true });
 
-	// Native Search may have already finished rendering by the time this
-	// script runs — in that case MutationObserver alone never fires.
-	// Poll briefly for a stable, non-empty item count, then sort once.
+	// Poll for stable result count in case MutationObserver misses initial render
 	let stableChecks = 0;
 	let lastCount = -1;
 	const pollTimer = setInterval(() => {
@@ -337,6 +342,5 @@ export function functionSearchSort() {
 		}
 	}, 150);
 
-	// Safety timeout: stop polling after 5s regardless (e.g. genuinely no results)
 	setTimeout(() => clearInterval(pollTimer), 5000);
 }
