@@ -72,7 +72,7 @@ import { functionQsimGate } from "./modules/interactive/gate-qsim.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Native Search with buttons v02] ##"); // ADD THIS LINE
+  console.log("## [Native Search | Staging url blacklisting] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
