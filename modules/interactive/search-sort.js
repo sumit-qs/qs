@@ -3,7 +3,7 @@
  *
  * PRIORITY ORDER
  *   Tier 1: static pages (anything not matching a known CMS collection URL)
- *   Tier 2: CMS collection items (Insights, Case Studies, Webinars, Conferences, People)
+ *   Tier 2: CMS collection items (Insights, Case Studies, Webinars, Conferences, People, Solutions)
  * Tier 1 always renders entirely above Tier 2 — this is a hard priority
  * split, not a blended sort.
  *
@@ -13,23 +13,27 @@
  *
  * COLLECTION FILTER BUTTONS
  *   Buttons with class .btn-is-search and a data-collection attribute filter
- *   the visible results. data-collection values map to COLLECTIONS[].name,
- *   plus the reserved value "static" for static/Tier 1 pages.
- *   - Default (no active buttons): all results shown in tier order
- *   - One or more active: only matching results shown; hidden items stay in
- *     the DOM (display:none) so re-showing is instant with no re-sort
- *   - All buttons deactivated: reverts to full default view
- *   - Multiple active buttons: union of all selected collections shown
+ *   the visible results. Behaves like a radio group — only one button active
+ *   at a time. Clicking the active button again deactivates it and reverts
+ *   to the full default view.
+ *
+ *   data-collection values:
+ *     "insights"      → /insights/
+ *     "case-studies"  → /case-studies/
+ *     "webinars"      → /webinars/
+ *     "conferences"   → /conference/
+ *     "people"        → /people/
+ *     "solutions"     → /solutions/
  *
  * BLACKLIST
  *   URL prefixes in BLACKLISTED_URL_PREFIXES are removed from the DOM
- *   entirely before tiering/sorting runs. This is a client-side removal
- *   only — Webflow's search index is unaffected.
+ *   entirely before tiering/sorting runs. Client-side only — Webflow's
+ *   search index is unaffected.
  *
  * SCOPE / LIMIT
  *   Search results limit raised to 60 (from 10). All 60 are fetched in
- *   parallel for Tier 2 date extraction, so watch for any rate-limiting
- *   or performance concerns at that volume in production.
+ *   parallel for Tier 2 date extraction, so watch for rate-limiting or
+ *   performance concerns at that volume in production.
  *
  * Hooks:
  *   .qs-search-list        — results wrapper
@@ -75,11 +79,15 @@ const COLLECTIONS = [
 	{
 		name: "people",
 		urlPrefix: "/people/",
-		selector: "", // no date field on People template — sorts alphabetically
+		selector: "", // no date field — sorts alphabetically within Tier 2
+	},
+	{
+		name: "solutions",
+		urlPrefix: "/solutions/",
+		selector: "", // no date field — sorts alphabetically within Tier 2
 	},
 
 	// Uncomment + fill selector when date element exists on frontend:
-	// { name: "solutions", urlPrefix: "/solutions/", selector: "" },
 	// { name: "magazines", urlPrefix: "/magazines/", selector: "" },
 ];
 
@@ -173,24 +181,12 @@ function sortByDateThenTitle(entries) {
 }
 
 // ---------------------------------------------------------------------------
-// FILTER — applies active button selection to already-sorted, stored entries.
-// Operates purely on display:none toggling; never re-sorts or re-fetches.
+// FILTER — radio behaviour: one active collection at a time, or none (default).
+// Operates purely on display:none toggling — never re-sorts or re-fetches.
 // ---------------------------------------------------------------------------
-function applyFilter(allEntries, activeCollections) {
-	const noFilter = activeCollections.size === 0;
-
+function applyFilter(allEntries, activeCollection) {
 	for (const entry of allEntries) {
-		let visible;
-		if (noFilter) {
-			visible = true;
-		} else if (activeCollections.has("static")) {
-			// "static" selected: show static pages, and any other active collections
-			visible =
-				entry.tier === "static" ||
-				(entry.collectionName && activeCollections.has(entry.collectionName));
-		} else {
-			visible = entry.collectionName && activeCollections.has(entry.collectionName);
-		}
+		const visible = !activeCollection || entry.collectionName === activeCollection;
 		entry.item.style.display = visible ? "" : "none";
 	}
 }
@@ -249,7 +245,7 @@ async function sortSearchResultsByDate(resultsWrapper) {
 		tier2Sorted.map((r) => `${r.collectionName} — ${r.title || r.href}: ${r.date?.toDateString() ?? "undated"}`)
 	);
 
-	// Append in tier order
+	// Append in tier order: static first, then collections
 	const allEntries = [...tier1Sorted, ...tier2Sorted];
 	allEntries.forEach((r) => resultsWrapper.appendChild(r.item));
 
@@ -257,28 +253,41 @@ async function sortSearchResultsByDate(resultsWrapper) {
 }
 
 // ---------------------------------------------------------------------------
-// BUTTON FILTER INIT — wires up .btn-is-search buttons after sort completes.
+// BUTTON FILTER INIT — wires radio behaviour to .btn-is-search buttons.
+// Called after each sort so handlers always reference the current entry list.
 // ---------------------------------------------------------------------------
 function initFilterButtons(allEntries) {
 	const buttons = Array.from(document.querySelectorAll(".btn-is-search[data-collection]"));
 	if (!buttons.length) return;
 
-	const activeCollections = new Set();
-
+	// Clear any previously attached listeners by replacing each button with
+	// a clone — simplest way to avoid stacking handlers across re-sorts.
 	buttons.forEach((btn) => {
+		const fresh = btn.cloneNode(true);
+		btn.parentNode.replaceChild(fresh, btn);
+	});
+
+	// Re-query after clone replacement
+	const freshButtons = Array.from(document.querySelectorAll(".btn-is-search[data-collection]"));
+	let activeCollection = null;
+
+	freshButtons.forEach((btn) => {
 		btn.addEventListener("click", () => {
 			const collection = btn.getAttribute("data-collection");
 			if (!collection) return;
 
-			if (activeCollections.has(collection)) {
-				activeCollections.delete(collection);
+			if (activeCollection === collection) {
+				// Clicking the already-active button: deactivate → show all
+				activeCollection = null;
 				btn.classList.remove("is-active");
 			} else {
-				activeCollections.add(collection);
+				// New selection: deactivate previous, activate this one
+				freshButtons.forEach((b) => b.classList.remove("is-active"));
+				activeCollection = collection;
 				btn.classList.add("is-active");
 			}
 
-			applyFilter(allEntries, activeCollections);
+			applyFilter(allEntries, activeCollection);
 		});
 	});
 }
@@ -294,21 +303,17 @@ export function functionSearchSort() {
 
 	let debounceTimer;
 	let hasSortedOnce = false;
-	let allEntries = [];
 
 	async function runSort() {
 		observer.disconnect();
 		try {
-			allEntries = await sortSearchResultsByDate(resultsWrapper);
-
-			// Re-wire buttons with fresh entry list after each sort
-			// (new search query = new DOM items)
-			initFilterButtons(allEntries);
-
-			// Reset active button states on new search
+			// Reset all button states on every new sort (new search query)
 			document.querySelectorAll(".btn-is-search.is-active").forEach((btn) => {
 				btn.classList.remove("is-active");
 			});
+
+			const allEntries = await sortSearchResultsByDate(resultsWrapper);
+			initFilterButtons(allEntries);
 		} finally {
 			observer.observe(resultsWrapper, { childList: true });
 		}
@@ -321,7 +326,6 @@ export function functionSearchSort() {
 
 	observer.observe(resultsWrapper, { childList: true });
 
-	// Poll for stable result count in case MutationObserver misses initial render
 	let stableChecks = 0;
 	let lastCount = -1;
 	const pollTimer = setInterval(() => {
