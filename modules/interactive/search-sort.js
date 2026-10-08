@@ -50,6 +50,7 @@ const BLACKLISTED_URL_PREFIXES = [
 	"/terms-and-conditions/",
 	"/solution/", // CMS template only — redirects to /solutions/ static pages
 	"/staging/", // staging pages, not live content
+	"/conference/", // CMS conference template blacklisting
 ];
 
 // ---------------------------------------------------------------------------
