@@ -72,7 +72,7 @@ import { functionQsimGate } from "./modules/interactive/gate-qsim.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Native search custom conditions complete revamp v01] ##"); // ADD THIS LINE
+  console.log("## [Native search custom conditions revamp v02] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
