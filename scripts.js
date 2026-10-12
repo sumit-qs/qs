@@ -72,7 +72,7 @@ import { functionQsimGate } from "./modules/interactive/gate-qsim.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Scroll to top on tab switch - removal] ##"); // ADD THIS LINE
+  console.log("## [Native Search Revamp v01] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
