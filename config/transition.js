@@ -194,6 +194,11 @@ export function functionTransition({
     }
   }
 
+/*
+ ## TAB-SWITCH SCROLL-TO-TOP: page reloads when restored from bfcache,
+    which causes functionTop() in scripts.js to fire and scroll to y:0.
+    To re-enable: uncomment the block below.  
+ ##    
   window.addEventListener("pageshow", function(event) {
     if (event.persisted) {
       setTimeout(() => {
@@ -201,6 +206,7 @@ export function functionTransition({
       }, 10);
     }
   });
+*/
 
   setTimeout(() => {
     window.addEventListener("resize", () => {

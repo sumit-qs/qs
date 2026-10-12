@@ -72,7 +72,7 @@ import { functionQsimGate } from "./modules/interactive/gate-qsim.js";
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Native search custom conditions revamp v02] ##"); // ADD THIS LINE
+  console.log("## [Scroll to top on tab switch - removal] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -195,11 +195,18 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+/*  
+ ## SCROLL-TO-TOP ON INIT: smoothly scrolls to y:0 on every page load.
+    Originally paired with the pageshow reload above for consistent UX.
+    To re-enable: uncomment both lines below.
+ ##
   function functionTop() {
     gsap.to(window, { duration: 0.55, scrollTo: { y: 0 }, ease: myEase });
   }
 
-  functionTop(); 
+
+  //functionTop(); 
+*/  
   functionNavigationMobileToggle();
   functionLink();
   functionToggleAccordion();
