@@ -69,10 +69,12 @@ import { functionDragScroll, functionQsimDivider } from './modules/drag/dragscro
 import { functionLimitlessPeople } from './modules/finsweet/limitless-people.js';
 import { functionCustomSearch } from './modules/interactive/custom-search.js';
 import { functionQsimGate } from "./modules/interactive/gate-qsim.js";
+import { functionHubspotGate } from './modules/interactive/gate-hubspot.js';
+import { functionUtmCapture } from './modules/hubspot/utm-capture.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Native Search Revamp v01] ##"); // ADD THIS LINE
+  console.log("## [Softgate Staging V0.1] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
@@ -250,6 +252,8 @@ document.addEventListener("DOMContentLoaded", function () {
   functionQsimDivider();
   functionCustomSearch();
   functionQsimGate();
+  functionHubspotGate();
+  functionUtmCapture();
 
   }
 });
