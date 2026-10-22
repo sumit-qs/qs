@@ -74,7 +74,7 @@ import { functionUtmCapture } from './modules/hubspot/utm-capture.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Softgate Staging V0.1] ##"); // ADD THIS LINE
+  console.log("## [Softgate Staging V0.2] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,
