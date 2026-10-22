@@ -199,6 +199,19 @@ export function functionHubspotGate() {
   };
   Object.keys(els).forEach(clearOnEdit);
 
+  // Warn on blur if work email is required and a free domain is entered —
+  // gives users immediate feedback before they reach Submit.
+  if (requireWorkEmail) {
+    els.email.addEventListener('blur', () => {
+      const val = els.email.value.trim();
+      if (!val || !EMAIL_RE.test(val)) return; // let validate() handle empty/invalid format
+      const domain = val.split('@')[1];
+      if (domain && FREE_DOMAINS.indexOf(domain.toLowerCase()) !== -1) {
+        setError('email', 'Please use your work email address. Personal emails (Gmail, Yahoo, etc.) are not accepted.');
+      }
+    });
+  }
+
   const validate = () => {
     const values = {
       firstname: els.firstname.value.trim(),
@@ -218,7 +231,7 @@ export function functionHubspotGate() {
     if (!values.email) { setError('email', 'Please enter your email address.'); ok = false; }
     else if (!EMAIL_RE.test(values.email)) { setError('email', 'Please enter a valid email address.'); ok = false; }
     else if (requireWorkEmail && FREE_DOMAINS.indexOf(values.email.split('@')[1].toLowerCase()) !== -1) {
-      setError('email', 'Please use your work email address.'); ok = false;
+      setError('email', 'Please use your work email address. Personal emails (Gmail, Yahoo, etc.) are not accepted.'); ok = false;
     }
 
     if (!values.country) { setError('country', 'Please select your country.'); ok = false; }
