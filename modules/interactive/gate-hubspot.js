@@ -133,17 +133,19 @@ export function functionHubspotGate() {
         </div>
       </div>
 
-      <div class="qs-gate-hs-field qs-gate-hs-consent-field" data-field="consent" hidden>
-        <label class="qs-gate-hs-consent">
-          <input type="checkbox" id="qs-gate-hs-consent" name="consent">
-          <span class="qs-gate-hs-consent-box" aria-hidden="true"></span>
-          <span class="qs-gate-hs-consent-text">${CONSENT_TEXT}<span class="qs-gate-hs-req">*</span></span>
-        </label>
-        <span class="qs-gate-hs-error" aria-live="polite"></span>
-      </div>
+      <div class="qs-gate-hs-footer">
+        <div class="qs-gate-hs-field qs-gate-hs-consent-field" data-field="consent" hidden>
+          <label class="qs-gate-hs-consent">
+            <input type="checkbox" id="qs-gate-hs-consent" name="consent">
+            <span class="qs-gate-hs-consent-box" aria-hidden="true"></span>
+            <span class="qs-gate-hs-consent-text">${CONSENT_TEXT}<span class="qs-gate-hs-req">*</span></span>
+          </label>
+          <span class="qs-gate-hs-error" aria-live="polite"></span>
+        </div>
 
-      <div class="qs-gate-hs-actions">
-        <button type="button" class="qs-gate-hs-submit">Submit</button>
+        <div class="qs-gate-hs-actions">
+          <button type="button" class="qs-gate-hs-submit">Submit</button>
+        </div>
       </div>
 
       <p class="qs-gate-hs-msg" role="status" aria-live="polite"></p>
