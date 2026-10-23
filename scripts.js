@@ -74,7 +74,7 @@ import { functionUtmCapture } from './modules/hubspot/utm-capture.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Softgate Staging V0.4] ##"); // ADD THIS LINE
+  console.log("## [Case Study Revamp - Two cards height resize and tablet single card layout design fix] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,

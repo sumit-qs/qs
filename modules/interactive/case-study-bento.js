@@ -24,6 +24,19 @@
  *
  * readCount() scopes to the nearest .qs-case-study-wrap ancestor so
  * multiple instances on one page each read their own counter.
+ *
+ * Image-height equalisation (desktop only):
+ *   Sets min-height on .qs-card-asset-bottom for the same-row base-card pair
+ *   so both image tops settle at identical heights.
+ *   count=2 → card-one + card-two
+ *   count=3 → card-two + card-three
+ *   count=4 → card-three + card-four  (card-two is the tall spanning card)
+ *   Resets on every update() before re-applying, so mobile/tablet are never
+ *   affected.
+ *
+ * Drag bounds fix (tablet, < 992px):
+ *   getBounds() clamps minX to Math.min(rawMin, 0) so a single-card track
+ *   (narrower than the container) never gets pushed rightward by clamp().
  */
 
 import { gsap } from "gsap";
@@ -40,6 +53,14 @@ const BASE_CLASS     = "is-base-cs-card";
 const HORIZ_CLASS    = "is-horizontal-cs-card";
 const ORIENTED_SEL   = `.${BASE_CLASS}, .${HORIZ_CLASS}`;
 const DESKTOP_QUERY  = "(min-width: 992px)";
+
+// Slots to equalise per card count (desktop only).
+// count=4: card-two is the tall spanning card on the right — excluded.
+const EQ_SLOTS = {
+  2: ["card-one",   "card-two"  ],
+  3: ["card-two",   "card-three"],
+  4: ["card-three", "card-four" ],
+};
 
 // Keyed by wrap element — one Draggable instance per component instance.
 const draggableMap = new WeakMap();
@@ -87,6 +108,38 @@ export function functionCaseStudyBento() {
     col.matches(CARD_ROOT_SEL) ? col : col.querySelector(CARD_ROOT_SEL);
 
   // ------------------------------------------------------------------
+  // Image-height equalisation — desktop only, scoped to one grid
+  // ------------------------------------------------------------------
+  const equaliseImages = (grid, count, isDesktop) => {
+    // Always reset first so mobile/tablet and count-switch are never affected.
+    CARD_SLOTS.forEach((slot) => {
+      const bot = grid
+        .querySelector(`[qs-bento="${slot}"] .qs-card-asset-bottom`);
+      if (bot) bot.style.minHeight = "";
+    });
+
+    if (!isDesktop) return; // drag layout handles its own sizing
+
+    const slots = EQ_SLOTS[count];
+    if (!slots) return; // count=1 has nothing to equalise
+
+    const bottoms = [];
+    slots.forEach((slot) => {
+      const col = grid.querySelector(`[qs-bento="${slot}"]`);
+      if (!col || col.style.display === "none") return;
+      const root = getCardRoot(col);
+      if (!root?.classList.contains(BASE_CLASS)) return;
+      const bot = col.querySelector(".qs-card-asset-bottom");
+      if (bot) bottoms.push(bot);
+    });
+
+    if (bottoms.length < 2) return;
+
+    const maxBotH = Math.max(...bottoms.map((el) => el.offsetHeight));
+    bottoms.forEach((el) => { el.style.minHeight = maxBotH + "px"; });
+  };
+
+  // ------------------------------------------------------------------
   // Drag: init / destroy scoped to one wrap element
   // ------------------------------------------------------------------
   const initDrag = (wrap, grid) => {
@@ -100,8 +153,13 @@ export function functionCaseStudyBento() {
       const style          = window.getComputedStyle(wrap);
       const pl = parseFloat(style.paddingLeft)  || 0;
       const pr = parseFloat(style.paddingRight) || 0;
+      // Clamp to ≤ 0: when the track is narrower than the container
+      // (e.g. a single card on tablet) rawMin is positive, which would
+      // push the card rightward. Math.min caps it at 0 so the card
+      // stays left-aligned with no drag range.
+      const rawMin = containerWidth - trackWidth - pr + pl;
       return {
-        minX: containerWidth - trackWidth - pr + pl,
+        minX: Math.min(rawMin, 0),
         maxX: 0,
       };
     };
@@ -168,6 +226,9 @@ export function functionCaseStudyBento() {
       if (!cardRoot) return;
       applyOrientation(cardRoot, isDesktop && index === 0 && count !== 2);
     });
+
+    // Image-height equalisation (desktop only; resets on mobile)
+    equaliseImages(grid, count, isDesktop);
 
     // Drag toggle
     if (!wrap) return; // component doesn't have is-responsive-drag — skip
