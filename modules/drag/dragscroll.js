@@ -120,6 +120,17 @@ function waitForImages(track) {
 }
 
 function setupDrag(container, track) {
+  // touch-action defaults to "auto" (confirmed via diagnostic: both container
+  // and track read "auto"), which leaves the browser free to treat a real
+  // finger's gesture (which almost never moves on a perfectly straight axis)
+  // as native vertical page-panning and claim it before GSAP's JS ever turns
+  // it into a horizontal drag — mouse input has no such native-panning
+  // concept, so it was never affected. "pan-y" cedes vertical panning to the
+  // browser (so the page still scrolls normally) while taking the horizontal
+  // axis away from native handling entirely, leaving it to Draggable.
+  track.style.touchAction = "pan-y";
+  container.style.touchAction = "pan-y";
+
   /* DELETE AFTER FEATURE IS FIXED */
   const containerStyle = window.getComputedStyle(container);
   const trackStyle     = window.getComputedStyle(track);
@@ -194,7 +205,18 @@ function setupDrag(container, track) {
 
 function initDrag(container, track) {
   if (instanceMap.has(container)) return; // already live
-  waitForImages(track).then(() => setupDrag(container, track));
+  // Card widths are fixed by CSS, so bounds are correct before images paint —
+  // create the Draggable right away instead of waiting on every <img> to load.
+  // Cards 2+ sit outside the viewport horizontally (that's the whole point of
+  // a drag track), so with loading="lazy" images those never fire load/error
+  // until they're dragged into view — which never happens if creation is
+  // gated on them first. That was a deadlock: Draggable never got created at
+  // all. Recalculating bounds once images do load is kept as a safety net.
+  setupDrag(container, track);
+  waitForImages(track).then(() => {
+    const stored = instanceMap.get(container);
+    if (stored) stored.onResize();
+  });
 }
 
 function destroyDrag(container, track) {
