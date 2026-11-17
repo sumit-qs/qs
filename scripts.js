@@ -74,7 +74,7 @@ import { functionUtmCapture } from './modules/hubspot/utm-capture.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Case Study Revamp - Two cards height resize and tablet single card layout design fix] ##"); // ADD THIS LINE
+  console.log("## [Dragscroll Test V01] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,

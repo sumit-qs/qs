@@ -33,9 +33,25 @@
  */
 
 import { gsap } from "gsap";
-import { Draggable, InertiaPlugin } from "gsap/all";
+import { Draggable, InertiaPlugin, ScrollTrigger } from "gsap/all";
 
-gsap.registerPlugin(Draggable, InertiaPlugin);
+gsap.registerPlugin(Draggable, InertiaPlugin, ScrollTrigger);
+
+/* DELETE AFTER FEATURE IS FIXED — one-time environment dump */
+(() => {
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const normalizer = typeof ScrollTrigger.normalizeScroll === "function"
+    ? ScrollTrigger.normalizeScroll()
+    : null;
+  console.log('[qs-drag] ENV', {
+    ua: navigator.userAgent,
+    hasTouch,
+    maxTouchPoints: navigator.maxTouchPoints,
+    scrollTriggerIsTouch: ScrollTrigger.isTouch,          // 0 mouse-only, 1 touch-only, 2 both
+    normalizeScrollActive: !!normalizer,                   // true = ScrollTrigger is intercepting touch globally
+  });
+})();
+/* DELETE AFTER FEATURE IS FIXED */
 
 const ALL_SEL            = '[qs-drag="all"]';
 const RESPONSIVE_SEL     = '[qs-drag="responsive"]';
@@ -105,14 +121,18 @@ function waitForImages(track) {
 
 function setupDrag(container, track) {
   /* DELETE AFTER FEATURE IS FIXED */
+  const containerStyle = window.getComputedStyle(container);
+  const trackStyle     = window.getComputedStyle(track);
   console.log(`[qs-drag] initDrag`, {
     container,
     track,
     trackScrollWidth: track.scrollWidth,
     trackOffsetWidth: track.offsetWidth,
     containerOffsetWidth: container.offsetWidth,
-    trackComputedFlexWrap: window.getComputedStyle(track).flexWrap,
-    trackComputedWidth: window.getComputedStyle(track).width,
+    trackComputedFlexWrap: trackStyle.flexWrap,
+    trackComputedWidth: trackStyle.width,
+    containerTouchAction: containerStyle.touchAction, // should be "auto"/"none" — not "pan-y" fighting the drag
+    trackTouchAction: trackStyle.touchAction,
   });
   /* DELETE AFTER FEATURE IS FIXED */
 
@@ -122,6 +142,25 @@ function setupDrag(container, track) {
     bounds: () => getBounds(container, track),
     cursor: "grab",
     edgeResistance: 0.85,
+    onPress() {
+      /* DELETE AFTER FEATURE IS FIXED */
+      console.log('[qs-drag] onPress fired', { container, track });
+      /* DELETE AFTER FEATURE IS FIXED */
+      // ScrollTrigger.normalizeScroll(true) (see config/nativescroll.js) hijacks
+      // touchstart/touchmove globally on iOS to smooth page-scroll momentum.
+      // That global listener can swallow/compete with Draggable's own touch
+      // handling on the same gesture. Pausing it for the duration of the drag
+      // removes that conflict without disabling it site-wide.
+      const normalizer = ScrollTrigger.normalizeScroll();
+      if (normalizer) normalizer.disable();
+    },
+    onRelease() {
+      /* DELETE AFTER FEATURE IS FIXED */
+      console.log('[qs-drag] onRelease fired', { container, track });
+      /* DELETE AFTER FEATURE IS FIXED */
+      const normalizer = ScrollTrigger.normalizeScroll();
+      if (normalizer) normalizer.enable();
+    },
   })[0];
 
   instance.applyBounds(getBounds(container, track));
