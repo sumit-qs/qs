@@ -74,7 +74,7 @@ import { functionUtmCapture } from './modules/hubspot/utm-capture.js';
 
 
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("## [Dragscroll Test V01] ##"); // ADD THIS LINE
+  console.log("## [Dragscroll Test V02] ##"); // ADD THIS LINE
 
   gsap.registerPlugin(
     ScrollTrigger,

@@ -142,6 +142,15 @@ function setupDrag(container, track) {
     bounds: () => getBounds(container, track),
     cursor: "grab",
     edgeResistance: 0.85,
+    // Every card is wrapped in an <a> (qsim-content-card-wrapper). Draggable's
+    // default (dragClickables: false) ignores a press that starts on a
+    // clickable element so the link's own click/tap still works — which means
+    // it ignores EVERY real touch here, since a finger has no way to land
+    // outside the anchor. dragClickables:true lets the drag start there too;
+    // GSAP still tells a real tap (no movement) from a drag (movement past
+    // its threshold) on its own, so tapping a card to open the article is
+    // unaffected.
+    dragClickables: true,
     onPress() {
       /* DELETE AFTER FEATURE IS FIXED */
       console.log('[qs-drag] onPress fired', { container, track });
