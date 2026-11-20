@@ -48,11 +48,11 @@ export function functionNavigationMobileToggleConference() {
   };
 
   const toggleNav = () => {
-    if (window.innerWidth > 1279) return;
+    if (window.innerWidth > 991) return;
     open ? closeNav() : openNav();
   };
 
-  if (window.innerWidth <= 1279) {
+  if (window.innerWidth <= 991) {
     gsap.set(headerCenter, { display: 'none', yPercent: 25, opacity: 0 });
   }
 
